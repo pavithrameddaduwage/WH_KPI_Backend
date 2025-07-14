@@ -36,9 +36,9 @@ export class UploadService {
         await this.employeeReportService.process(data, fileName, reportDate);
         break;
 
-      // case 'horizon':
-      //   await this.horizonReportService.process(data, fileName, reportDate);
-      //   break;
+      case 'horizon':
+        await this.horizonReportService.process(data, fileName, reportDate);
+        break;
 
       case 'labor':
         await this.dailyReportService.process(data, fileName, reportDate);

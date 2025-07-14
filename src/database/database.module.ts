@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DailyReport } from 'src/daily_report/entities/daily_report.entity';
 import { DiverseDailyReport } from 'src/diverse_daily_report/entities/diverse_daily_report.entity';
 import { EmployeeReport } from 'src/employee_report/entities/employee_report.entity';
+import { HorizonReport } from 'src/horzion_report/entities/horzion_report.entity';
 
 
 @Module({
@@ -19,7 +20,7 @@ import { EmployeeReport } from 'src/employee_report/entities/employee_report.ent
                 password: configService.get<string>('PG_DB_PASSWORD'),
                 database: configService.get<string>('PG_DB_NAME'),
                 entities: [
-                    DailyReport,DiverseDailyReport,EmployeeReport
+                    DailyReport,DiverseDailyReport,EmployeeReport,HorizonReport
                 ],
                 synchronize: true,
             }),
