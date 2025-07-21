@@ -2,17 +2,34 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { DailyReportService } from 'src/daily_report/daily_report.service';
 import { DiverseDailyReportService } from 'src/diverse_daily_report/diverse_daily_report.service';
 import { EmployeeReportService } from 'src/employee_report/employee_report.service';
+import { FreightBreakersWeeklyService } from 'src/freight_breakers_weekly/freight_breakers_weekly.service';
+import { HireDynamicsWeeklyService } from 'src/hire_dynamics_weekly/hire_dynamics_weekly.service';
 import { HorzionReportService } from 'src/horzion_report/horzion_report.service';
 
-type FileType = 'diversedaily' | 'employeeTotal' | 'horizon' | 'labor';
+
+type FileType =
+  | 'diversedaily'
+  | 'employeeTotal'
+  | 'horizon'
+  | 'labor'
+  | 'employee_weekly'
+  | 'diverse_weekly'
+  | 'hire_dynamics_weekly'
+  | 'freight_breakers_weekly';
 
 @Injectable()
 export class UploadService {
   constructor(
-    private readonly dailyReportService: DailyReportService,  
-    private readonly diverseDailyReportService: DiverseDailyReportService, 
+    private readonly dailyReportService: DailyReportService,
+    private readonly diverseDailyReportService: DiverseDailyReportService,
     private readonly employeeReportService: EmployeeReportService,
     private readonly horizonReportService: HorzionReportService,
+
+ 
+    private readonly employeeWeeklyReportService: EmployeeReportService,
+    private readonly diverseWeeklyReportService: DiverseDailyReportService,
+    private readonly hireDynamicsReportService: HireDynamicsWeeklyService,
+    private readonly freightBreakersReportService: FreightBreakersWeeklyService,
   ) {}
 
   async handleJsonUpload(payload: {
@@ -43,6 +60,24 @@ export class UploadService {
       case 'labor':
         await this.dailyReportService.process(data, fileName, reportDate);
         break;
+
+  
+      case 'employee_weekly':
+        await this.employeeWeeklyReportService.process(data, fileName, reportDate);
+        break;
+
+      case 'diverse_weekly':
+      await this.diverseWeeklyReportService.process(data, fileName, reportDate);
+      break;
+
+
+      // case 'hire_dynamics_weekly':
+      //   await this.hireDynamicsReportService.process(data, fileName, reportDate);
+      //   break;
+
+      // case 'freight_breakers_weekly':
+      //   await this.freightBreakersReportService.process(data, fileName, reportDate);
+      //   break;
 
       default:
         throw new BadRequestException(`Unsupported fileType: ${fileType}`);
