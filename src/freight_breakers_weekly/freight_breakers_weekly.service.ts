@@ -18,17 +18,8 @@ export class FreightBreakersWeeklyService {
   ) {}
 
   private readonly expectedHeaders = [
-    'Date',
-    'Employee',
-    'Job',
-    'Container',
-    'QTY',
-    'SKUCount',
-    'Door',
-    'Type',
-    'Units',
-    'Rate',
-    'Amount',
+    'Date', 'Employee', 'Job', 'Container', 'QTY',
+    'SKUCount', 'Door', 'Type', 'Units', 'Rate', 'Amount',
   ];
 
   private readonly dbColumnMap: Record<string, string> = {
@@ -58,16 +49,11 @@ export class FreightBreakersWeeklyService {
       const startDate = this.validateAndNormalizeDate(startDateStr);
       const endDate = this.validateAndNormalizeDate(endDateStr);
 
-      const firstRow = data[0];
-      const headers = Object.keys(firstRow).filter(h => h.trim() !== '');
+      const headers = Object.keys(data[0] || {}).filter(h => h.trim() !== '');
       this.validateHeaders(headers);
 
       const rows = data.filter(row =>
-        Object.values(row).some(val =>
-          val !== null &&
-          val !== undefined &&
-          val.toString().trim() !== ''
-        )
+        Object.values(row).some(val => val !== null && val !== undefined && val.toString().trim() !== '')
       );
 
       const mapped = rows
@@ -108,19 +94,52 @@ export class FreightBreakersWeeklyService {
     return new Date(y, m - 1, d, 12);
   }
 
+  private parseIntOrZero(val: unknown): number {
+    const n = parseInt((val ?? '').toString().replace(/[^\d-]/g, ''), 10);
+    return isNaN(n) ? 0 : n;
+  }
+
+  private parseFloatOrZero(val: unknown): number {
+    const n = parseFloat((val ?? '').toString().replace(/[^\d.-]/g, ''));
+    return isNaN(n) ? 0 : n;
+  }
+
   private mapToEntity(
     raw: Record<string, any>,
     startDate: Date,
     endDate: Date
   ): FreightBreakersWeekly | null {
-    const parseFloatOrNull = (val: unknown): number => {
-      const n = parseFloat((val ?? '').toString().replace(/[^\d.-]/g, ''));
-      return isNaN(n) ? 0 : n;
-    };
-
     const parseDate = (val: unknown): Date | null => {
-      const d = new Date(val as string);
-      return isNaN(d.getTime()) ? null : d;
+      if (val == null) return null;
+
+      if (typeof val === 'number') {
+        const excelEpoch = new Date(Date.UTC(1899, 11, 30));  
+        let days = val;
+        if (days >= 60) days -= 1;
+        const date = new Date(excelEpoch.getTime() + days * 86400 * 1000);
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+      }
+
+      if (typeof val === 'string') {
+        // Try MM/DD/YYYY format
+        const mmddyyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+        const m = val.match(mmddyyyy);
+        if (m) {
+          const month = parseInt(m[1], 10);
+          const day = parseInt(m[2], 10);
+          const year = parseInt(m[3], 10);
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            return new Date(year, month - 1, day, 12);
+          }
+        }
+    
+        const isoDate = new Date(val);
+        if (!isNaN(isoDate.getTime())) {
+          return new Date(isoDate.getFullYear(), isoDate.getMonth(), isoDate.getDate(), 12);
+        }
+      }
+
+      return null;
     };
 
     const record: any = {
@@ -132,15 +151,18 @@ export class FreightBreakersWeeklyService {
     if (!record['Date']) return null;
 
     for (const header of this.expectedHeaders) {
-      if (['Date'].includes(header)) continue;
+      if (header === 'Date') continue;
 
       const val = raw[header];
 
-      record[header] = ['QTY', 'SKUCount', 'Units'].includes(header)
-        ? parseInt(val)
-        : ['Rate', 'Amount'].includes(header)
-        ? parseFloatOrNull(val)
-        : val?.toString().trim() ?? null;
+      record[header] =
+        ['QTY', 'SKUCount', 'Units'].includes(header)
+          ? this.parseIntOrZero(val)
+          : ['Rate', 'Amount'].includes(header)
+          ? this.parseFloatOrZero(val)
+          : (val ?? '').toString().trim() === ''
+          ? ''
+          : val.toString().trim();
     }
 
     return record as FreightBreakersWeekly;
@@ -148,8 +170,14 @@ export class FreightBreakersWeeklyService {
 
   private async insertOrUpdateTransactional(data: FreightBreakersWeekly[]) {
     const batchSize = 1000;
-    const allHeaders = ['Start Date', 'End Date', 'Date', ...this.expectedHeaders.filter(h => h !== 'Date')];
-    const dbColumns = allHeaders.map(h => this.dbColumnMap[h]);
+    const conflictColumns = [
+      'start_date', 'end_date', 'date', 'employee',
+      'job', 'container', 'qty', 'sku_count',
+      'door', 'type', 'units', 'rate',
+    ];
+
+    const allHeaders = [...conflictColumns, 'amount'];
+    const dbColumns = allHeaders;
 
     await this.entityManager.transaction(async (manager) => {
       for (let i = 0; i < data.length; i += batchSize) {
@@ -158,7 +186,8 @@ export class FreightBreakersWeeklyService {
 
         const placeholders = chunk.map(row => {
           const rowValues = allHeaders.map(header => {
-            const val = row[header as keyof FreightBreakersWeekly];
+            const entityKey = Object.entries(this.dbColumnMap).find(([key, val]) => val === header)?.[0];
+            const val = entityKey ? row[entityKey as keyof FreightBreakersWeekly] : null;
             values.push(val);
             return `$${values.length}`;
           });
@@ -168,10 +197,8 @@ export class FreightBreakersWeeklyService {
         const query = `
           INSERT INTO freight_breakers_weekly (${dbColumns.join(', ')})
           VALUES ${placeholders.join(', ')}
-          ON CONFLICT (start_date, end_date, date)
-          DO UPDATE SET ${dbColumns
-            .filter(col => !['start_date', 'end_date', 'date'].includes(col))
-            .map(col => `${col} = EXCLUDED.${col}`).join(', ')};
+          ON CONFLICT (${conflictColumns.join(', ')})
+          DO UPDATE SET amount = EXCLUDED.amount;
         `;
 
         await manager.query(query, values);

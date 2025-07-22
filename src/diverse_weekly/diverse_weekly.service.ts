@@ -181,7 +181,7 @@ export class DiverseWeeklyService {
     };
   }
 
-  private async insertOrUpdateTransactional(data: DiverseWeeklyReport[]) {
+   private async insertOrUpdateTransactional(data: DiverseWeeklyReport[]) {
     const batchSize = 1000;
 
     const columns = [

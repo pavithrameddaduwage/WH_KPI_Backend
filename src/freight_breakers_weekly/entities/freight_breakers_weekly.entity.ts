@@ -3,41 +3,43 @@ import { Entity, Column, PrimaryColumn } from 'typeorm';
 @Entity({ name: 'freight_breakers_weekly' })
 export class FreightBreakersWeekly {
   @PrimaryColumn('date', { name: 'start_date' })
-  'Start Date': Date;
+  StartDate: Date;
 
   @PrimaryColumn('date', { name: 'end_date' })
-  'End Date': Date;
+  EndDate: Date;
 
   @PrimaryColumn('date', { name: 'date' })
-  'Date': Date;
+  Date: Date;
 
-  @Column('varchar', { name: 'employee', nullable: true })
-  'Employee': string;
+  @PrimaryColumn('varchar', { name: 'employee' })
+  Employee: string;
 
-  @Column('varchar', { name: 'job', nullable: true })
-  'Job': string;
+  @PrimaryColumn('varchar', { name: 'job' })
+  Job: string;
 
-  @Column('varchar', { name: 'container', nullable: true })
-  'Container': string;
+  @PrimaryColumn('varchar', { name: 'container' })
+  Container: string;
 
-  @Column('int', { name: 'qty', nullable: true })
-  'QTY': number;
+  @PrimaryColumn('int', { name: 'qty' })
+  QTY: number;
 
-  @Column('int', { name: 'sku_count', nullable: true })
-  'SKUCount': number;
+  @PrimaryColumn('int', { name: 'sku_count' })
+  SKUCount: number;
 
-  @Column('varchar', { name: 'door', nullable: true })
-  'Door': string;
+  @PrimaryColumn('varchar', { name: 'door' })
+  Door: string;
 
-  @Column('varchar', { name: 'type', nullable: true })
-  'Type': string;
+  @PrimaryColumn('varchar', { name: 'type' })
+  Type: string;
 
-  @Column('int', { name: 'units', nullable: true })
-  'Units': number;
+  @PrimaryColumn('int', { name: 'units' })
+  Units: number;
 
-  @Column('float', { name: 'rate', nullable: true })
-  'Rate': number;
+  @PrimaryColumn('float', { name: 'rate' })
+  Rate: number;
 
   @Column('float', { name: 'amount', nullable: true })
-  'Amount': number;
+  Amount: number | null;
+
+ 
 }
