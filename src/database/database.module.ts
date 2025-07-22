@@ -6,6 +6,8 @@ import { DiverseDailyReport } from 'src/diverse_daily_report/entities/diverse_da
 import { EmployeeReport } from 'src/employee_report/entities/employee_report.entity';
 import { HorizonReport } from 'src/horzion_report/entities/horzion_report.entity';
 import { DiverseWeeklyReport } from 'src/diverse_weekly/entities/diverse_weekly.entity';
+import { HireDynamicsWeekly } from 'src/hire_dynamics_weekly/entities/hire_dynamics_weekly.entity';
+import { FreightBreakersWeekly } from 'src/freight_breakers_weekly/entities/freight_breakers_weekly.entity';
 
 
 @Module({
@@ -21,7 +23,7 @@ import { DiverseWeeklyReport } from 'src/diverse_weekly/entities/diverse_weekly.
                 password: configService.get<string>('PG_DB_PASSWORD'),
                 database: configService.get<string>('PG_DB_NAME'),
                 entities: [
-                    DailyReport,DiverseDailyReport,EmployeeReport,HorizonReport,DiverseWeeklyReport
+                    DailyReport,DiverseDailyReport,EmployeeReport,HorizonReport,DiverseWeeklyReport,HireDynamicsWeekly,FreightBreakersWeekly
                 ],
                 synchronize: true,
             }),

@@ -23,10 +23,10 @@ export class DiverseWeeklyService {
     'LAST NAME',
   ];
 
-  private readonly identifyingFields = ['employee_name', 'report_start_date', 'report_end_date'];
+  private readonly identifyingFields = ['employee_payroll_id', 'start_date', 'end_date'];
 
   private readonly fieldsToUpdate = [
-    'employee_payroll_id',
+    'employee_name',
     'first_name',
     'last_name',
     'department_name',
@@ -43,67 +43,67 @@ export class DiverseWeeklyService {
 
       const { reportStartDate, reportEndDate } = this.parseReportWeek(reportWeek);
 
-      const isHeaderRow = (row: Record<string, any>): boolean => {
+      // Detect the actual header row
+      const headerIndex = data.findIndex((row: Record<string, any>) => {
         const values = Object.values(row).map((val) =>
           String(val || '').trim().toUpperCase(),
         );
         return this.requiredHeaders.every((header) => values.includes(header));
-      };
+      });
 
-      const headerIndex = data.findIndex(isHeaderRow);
       if (headerIndex === -1) {
         throw new BadRequestException('Valid header row not found in uploaded file.');
       }
 
       const headerRow = data[headerIndex];
- 
+
+      // Map original Excel column keys -> normalized header labels
       const keyMapping: Record<string, string> = {};
       for (const key of Object.keys(headerRow)) {
-        const cleanHeader = String(headerRow[key] ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
-        if (cleanHeader) {
-          keyMapping[key] = cleanHeader;
+        const label = String(headerRow[key] ?? '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toUpperCase();
+        if (label) {
+          keyMapping[key] = label;
         }
       }
 
- 
-      const contentRows = data.slice(headerIndex + 1);
- 
-      const filteredRows: Record<string, any>[] = [];
-      for (const row of contentRows) {
-        const firstCell = Object.values(row)[0];
-        if (typeof firstCell === 'string') {
-          const upperFirstCell = firstCell.trim().toUpperCase();
-          if (upperFirstCell === '' || upperFirstCell.includes('TOTAL')) {
-            break;
-          }
-        }
-        filteredRows.push(row);
-      }
-
-    
-      const structuredRows = filteredRows.map((row) => {
-        const normalizedRow: Record<string, any> = {};
-        for (const key of Object.keys(row)) {
-          const cleanKey = keyMapping[key];
-          if (cleanKey) {
-            normalizedRow[cleanKey] = row[key];
-          }
-        }
-        return normalizedRow;
-      });
-
+      // Validate required headers exist
       this.validateHeaders(Object.values(keyMapping));
 
-      const mapped = structuredRows
+      const rawRows = data.slice(headerIndex + 1);
+
+      // Filter out totals/empty rows
+      const filteredRows = rawRows.filter((row) => {
+        const firstCell = Object.values(row)[0];
+        const upper = String(firstCell || '').trim().toUpperCase();
+        return upper && !upper.includes('TOTAL');
+      });
+
+      // Normalize keys per row using key mapping
+      const structuredRows = filteredRows.map((row) => {
+        const normalized: Record<string, any> = {};
+        for (const key of Object.keys(row)) {
+          const mapped = keyMapping[key];
+          if (mapped) {
+            normalized[mapped] = row[key];
+          }
+        }
+        return normalized;
+      });
+
+      // Convert normalized rows into entity-compatible objects
+      const mappedEntities = structuredRows
         .map((row) => this.mapToEntity(row, reportStartDate, reportEndDate))
         .filter((row): row is DiverseWeeklyReport => row !== null);
 
-      if (mapped.length === 0) {
+      if (mappedEntities.length === 0) {
         this.logger.warn('No valid rows to process after filtering.');
         return;
       }
 
-      await this.insertOrUpdateTransactional(mapped);
+      await this.insertOrUpdateTransactional(mappedEntities);
     } catch (error: any) {
       throw error instanceof BadRequestException
         ? error
@@ -134,6 +134,7 @@ export class DiverseWeeklyService {
         `Invalid reportWeek format: "${week}". Expected format: "YYYY-MM-DD to YYYY-MM-DD"`,
       );
     }
+
     const reportStartDate = new Date(match[1]);
     const reportEndDate = new Date(match[2]);
 
@@ -154,31 +155,29 @@ export class DiverseWeeklyService {
       return isNaN(n) ? 0 : n;
     };
 
-    const normalizedRaw: Record<string, string> = {};
+    const normalized: Record<string, string> = {};
     for (const [key, value] of Object.entries(raw)) {
-      const normalizedKey = key.replace(/\s+/g, ' ').trim().toUpperCase();
-      normalizedRaw[normalizedKey] =
+      const cleanKey = key.replace(/\s+/g, ' ').trim().toUpperCase();
+      normalized[cleanKey] =
         typeof value === 'string' ? value.trim() : String(value ?? '');
     }
 
-    const employeeName = normalizedRaw['EMPLOYEE NAME'];
-    const payrollId = normalizedRaw['EMPLOYEE PAYROLL ID'];
+    const employeeName = normalized['EMPLOYEE NAME'];
+    const payrollId = normalized['EMPLOYEE PAYROLL ID'];
 
-    if (!employeeName || !payrollId) {
-      return null;
-    }
+    if (!employeeName || !payrollId) return null;
 
     return {
-      employeeName,
-      reportStartDate,
-      reportEndDate,
       employeePayrollId: payrollId,
-      firstName: normalizedRaw['FIRST NAME'],
-      lastName: normalizedRaw['LAST NAME'],
-      departmentName: normalizedRaw['DEPARTMENT NAME'],
-      reg: parseNumber(normalizedRaw['REG']),
-      ot1: parseNumber(normalizedRaw['OT1']),
-      total: parseNumber(normalizedRaw['TOTAL']),
+      startDate: reportStartDate,
+      endDate: reportEndDate,
+      employeeName,
+      firstName: normalized['FIRST NAME'],
+      lastName: normalized['LAST NAME'],
+      departmentName: normalized['DEPARTMENT'],
+      reg: parseNumber(normalized['REG']),
+      ot1: parseNumber(normalized['OT1']),
+      total: parseNumber(normalized['TOTAL']),
     };
   }
 
@@ -186,10 +185,10 @@ export class DiverseWeeklyService {
     const batchSize = 1000;
 
     const columns = [
-      'employee_name',
-      'report_start_date',
-      'report_end_date',
       'employee_payroll_id',
+      'start_date',
+      'end_date',
+      'employee_name',
       'first_name',
       'last_name',
       'department_name',
@@ -203,10 +202,10 @@ export class DiverseWeeklyService {
         const chunk = data.slice(i, i + batchSize);
         const values: any[] = [];
 
-        const placeholders = chunk.map((row: DiverseWeeklyReport) => {
+        const placeholders = chunk.map((row) => {
           const rowValues = columns.map((col) => {
             const camelKey = this.snakeToCamel(col) as keyof DiverseWeeklyReport;
-            values.push(row[camelKey] as any);
+            values.push(row[camelKey]);
             return `$${values.length}`;
           });
           return `(${rowValues.join(', ')})`;
@@ -217,7 +216,7 @@ export class DiverseWeeklyService {
           VALUES ${placeholders.join(', ')}
           ON CONFLICT (${this.identifyingFields.join(', ')})
           DO UPDATE SET ${this.fieldsToUpdate
-            .map((f) => `${f} = EXCLUDED.${f}`)
+            .map((col) => `${col} = EXCLUDED.${col}`)
             .join(', ')};
         `;
 

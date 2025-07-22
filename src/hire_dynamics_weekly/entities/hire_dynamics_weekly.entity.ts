@@ -2,66 +2,66 @@ import { Entity, Column, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'hire_dynamics_weekly' })
 export class HireDynamicsWeekly {
-  @PrimaryColumn({ name: 'start_date', type: 'date' })
-  startDate: Date;
+  @PrimaryColumn('varchar', { name: 'employee_id' })
+  'Employee': string;
 
-  @PrimaryColumn({ name: 'end_date', type: 'date' })
-  endDate: Date;
+  @PrimaryColumn('date', { name: 'start_date' })
+  'Start Date': Date;
 
-  @Column({ name: 'department_g3' })
-  departmentG3: string;
+  @PrimaryColumn('date', { name: 'end_date' })
+  'End Date': Date;
 
-  @Column({ name: 'employee' })
-  employee: string;
+  @PrimaryColumn('date', { name: 'work_date' }) 
+  'Work Date': Date;
 
-  @Column({ name: 'work_date', type: 'date' })
-  workDate: Date;
+  @Column('varchar', { name: 'department_g3', nullable: true })
+  'Department  (G3)': string;
 
-  @Column({ name: 'approval_status' })
-  approvalStatus: string;
+  @Column('varchar', { name: 'approval_status', nullable: true })
+  'Approval Status': string;
 
-  @Column({ name: 'time_dcomp' })
-  timeDcomp: string;
+  @Column('timestamp', { name: 'time_dcomp', nullable: true })
+  'TIME.DCOMP': Date;
 
-  @Column({ name: 'date', type: 'date' })
-  date: Date;
+  @Column('date', { name: 'date', nullable: true })
+  'Date': Date;
 
-  @Column({ name: 'paycode' })
-  paycode: string;
+  @Column('varchar', { name: 'paycode', nullable: true })
+  'Paycode': string;
 
-  @Column({ name: 'in_time' })
-  in: string;
+  @Column('varchar', { name: 'in_time', nullable: true })
+  'IN': string;
 
-  @Column({ name: 'in_ex' })
-  inEx: string;
+  @Column('varchar', { name: 'in_ex', nullable: true })
+  'In Ex': string;
 
-  @Column({ name: 'out_time' })
-  out: string;
+  @Column('varchar', { name: 'out_time', nullable: true })
+  'OUT': string;
 
-  @Column({ name: 'out_ex' })
-  outEx: string;
+  @Column('varchar', { name: 'out_ex', nullable: true })
+  'Out Ex': string;
 
-  @Column({ name: 'reason' })
-  reason: string;
+  @Column('varchar', { name: 'reason', nullable: true })
+  'Reason': string;
 
-  @Column({ name: 'department' })
-  department: string;
+  @Column('varchar', { name: 'department', nullable: true })
+  'Department': string;
 
-  @Column({ name: 'shift_pay_ex' })
-  shiftPayEx: string;
+  @Column('varchar', { name: 'shift_pay_ex', nullable: true })
+  'Sh/Pay Ex': string;
 
-  @Column({ name: 'reg_hrs', type: 'float', default: 0 })
-  regHrs: number;
+  @Column('float', { name: 'reg_hrs', nullable: true })
+  'Reg Hrs': number;
 
-  @Column({ name: 'ot', type: 'float', default: 0 })
-  ot: number;
+  @Column('float', { name: 'ot', nullable: true })
+  'OT': number;
 
-  @Column({ name: 'dt', type: 'float', default: 0 })
-  dt: number;
+  @Column('float', { name: 'dt', nullable: true })
+  'DT': number;
 
-  @Column({ name: 'daily_total', type: 'float', default: 0 })
-  dailyTotal: number;
+  @Column('float', { name: 'daily_total', nullable: true })
+  'Daily Total': number;
 
-  @Column({ name: 'count', type: 'int', default: 0 })
-  count: number;
+  @Column('int', { name: 'count', nullable: true })
+  'COUNT': number;
 }

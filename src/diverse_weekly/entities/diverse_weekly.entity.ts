@@ -2,17 +2,17 @@ import { Entity, Column, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'diverse_weekly_reports' })
 export class DiverseWeeklyReport {
-  @PrimaryColumn({ name: 'employee_name' })
-  employeeName: string;
-
-  @PrimaryColumn({ name: 'report_start_date', type: 'date' })
-  reportStartDate: Date;
-
-  @PrimaryColumn({ name: 'report_end_date', type: 'date' })
-  reportEndDate: Date;
-
-  @Column({ name: 'employee_payroll_id' })
+  @PrimaryColumn({ name: 'employee_payroll_id' })
   employeePayrollId: string;
+
+  @PrimaryColumn({ name: 'start_date', type: 'date' })
+  startDate: Date;
+
+  @PrimaryColumn({ name: 'end_date', type: 'date' })
+  endDate: Date;
+
+  @Column({ name: 'employee_name' })
+  employeeName: string;
 
   @Column({ name: 'first_name' })
   firstName: string;

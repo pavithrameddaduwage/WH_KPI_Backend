@@ -5,5 +5,6 @@ import { DiverseWeeklyController } from './diverse_weekly.controller';
 @Module({
   controllers: [DiverseWeeklyController],
   providers: [DiverseWeeklyService],
+  exports: [DiverseWeeklyService], 
 })
 export class DiverseWeeklyModule {}
