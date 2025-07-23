@@ -11,24 +11,24 @@ export class DiverseWeeklyReport {
   @PrimaryColumn({ name: 'end_date', type: 'date' })
   endDate: Date;
 
-  @Column({ name: 'employee_name' })
+  @Column({ name: 'employee_name', nullable: true })
   employeeName: string;
 
-  @Column({ name: 'first_name' })
+  @Column({ name: 'first_name', nullable: true })
   firstName: string;
 
-  @Column({ name: 'last_name' })
+  @Column({ name: 'last_name', nullable: true })
   lastName: string;
 
-  @Column({ name: 'department_name' })
+  @Column({ name: 'department_name', nullable: true })
   departmentName: string;
 
-  @Column({ name: 'reg', type: 'float', default: 0 })
+  @Column({ name: 'reg', type: 'float', default: 0, nullable: true })
   reg: number;
 
-  @Column({ name: 'ot1', type: 'float', default: 0 })
+  @Column({ name: 'ot1', type: 'float', default: 0, nullable: true })
   ot1: number;
 
-  @Column({ name: 'total', type: 'float', default: 0 })
+  @Column({ name: 'total', type: 'float', default: 0, nullable: true })
   total: number;
 }

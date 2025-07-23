@@ -75,7 +75,7 @@ export class UploadService {
           throw new BadRequestException('Missing startDate or endDate for diverse_weekly');
         }
         const reportWeek = `${startDate} to ${endDate}`;
-        await this.diverseWeeklyReportService.process(data, fileName, reportWeek);
+        await this.diverseWeeklyReportService.process(data, fileName, startDate, endDate);
         break;
 
       case 'hire_dynamics_weekly':
