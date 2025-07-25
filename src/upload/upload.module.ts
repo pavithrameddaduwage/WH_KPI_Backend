@@ -19,7 +19,8 @@ import { HireDynamicsWeeklyModule } from 'src/hire_dynamics_weekly/hire_dynamics
     HireDynamicsWeeklyModule,
     FreightBreakersWeeklyModule,
     EmployeeWeeklyModule,
-    DiverseWeeklyModule
+    DiverseWeeklyModule,
+    
   ],
   controllers: [UploadController],
   providers: [UploadService],

@@ -5,5 +5,6 @@ import { EmployeeWeeklyController } from './employee_weekly.controller';
 @Module({
   controllers: [EmployeeWeeklyController],
   providers: [EmployeeWeeklyService],
+  exports: [EmployeeWeeklyService],
 })
 export class EmployeeWeeklyModule {}

@@ -3,6 +3,7 @@ import { DailyReportService } from 'src/daily_report/daily_report.service';
 import { DiverseDailyReportService } from 'src/diverse_daily_report/diverse_daily_report.service';
 import { DiverseWeeklyService } from 'src/diverse_weekly/diverse_weekly.service';
 import { EmployeeReportService } from 'src/employee_report/employee_report.service';
+import { EmployeeWeeklyService } from 'src/employee_weekly/employee_weekly.service';
 import { FreightBreakersWeeklyService } from 'src/freight_breakers_weekly/freight_breakers_weekly.service';
 import { HireDynamicsWeeklyService } from 'src/hire_dynamics_weekly/hire_dynamics_weekly.service';
 import { HorzionReportService } from 'src/horzion_report/horzion_report.service';
@@ -24,7 +25,7 @@ export class UploadService {
     private readonly diverseDailyReportService: DiverseDailyReportService,
     private readonly employeeReportService: EmployeeReportService,
     private readonly horizonReportService: HorzionReportService,
-    private readonly employeeWeeklyReportService: EmployeeReportService,
+    private readonly employeeWeeklyReportService: EmployeeWeeklyService,
     private readonly diverseWeeklyReportService: DiverseWeeklyService,
     private readonly hireDynamicsReportService: HireDynamicsWeeklyService,
     private readonly freightBreakersReportService: FreightBreakersWeeklyService,
@@ -52,7 +53,8 @@ export class UploadService {
 
       case 'employeeTotal':
         if (!reportDate) throw new BadRequestException('Missing reportDate for employeeTotal');
-        await this.employeeReportService.process(data, fileName, reportDate);
+       await this.employeeWeeklyReportService.process(data, fileName, startDate, endDate);
+
         break;
 
       case 'horizon':
@@ -66,15 +68,16 @@ export class UploadService {
         break;
 
       case 'employee_weekly':
-        if (!reportDate) throw new BadRequestException('Missing reportDate for employee_weekly');
-        await this.employeeWeeklyReportService.process(data, fileName, reportDate);
-        break;
+      if (!startDate || !endDate) {
+        throw new BadRequestException('Missing startDate or endDate for employee_weekly');
+      }
+      await this.employeeWeeklyReportService.process(data, fileName, startDate, endDate);
+      break;
 
       case 'diverse_weekly':
         if (!startDate || !endDate) {
           throw new BadRequestException('Missing startDate or endDate for diverse_weekly');
         }
-        const reportWeek = `${startDate} to ${endDate}`;
         await this.diverseWeeklyReportService.process(data, fileName, startDate, endDate);
         break;
 
