@@ -1,11 +1,14 @@
-import { Entity, Column, PrimaryColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'employee_reports' })
 export class EmployeeReport {
-  @PrimaryColumn({ name: 'uploaded_date', type: 'date' })
+  @PrimaryGeneratedColumn('uuid')
+  id?: string;
+
+  @Column({ name: 'uploaded_date', type: 'date' })
   uploadedDate: Date;
 
-  @PrimaryColumn({ name: 'employee_name' })
+  @Column({ name: 'employee_name', nullable: true })
   employeeName: string;
 
   @Column({ name: 'business_unit_description', nullable: true })

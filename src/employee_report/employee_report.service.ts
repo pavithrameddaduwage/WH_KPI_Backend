@@ -29,10 +29,9 @@ export class EmployeeReportService {
     'Shift',
   ];
 
-  private readonly identifyingFields = ['uploaded_date', 'employee_name'];
-
-  private readonly fieldsToUpdate = [
-    'business_unit_description',
+  // Update this to reflect the new UNIQUE constraint
+  private readonly identifyingFields = [
+    'uploaded_date',
     'business_unit_code',
     'home_department_code',
     'worked_department',
@@ -42,7 +41,10 @@ export class EmployeeReportService {
     'shift',
   ];
 
-  private readonly chunkBuffer = new Map<string, EmployeeReport[]>();
+  private readonly fieldsToUpdate = [
+    'employee_name',
+    'business_unit_description',
+  ];
 
   async process(data: any[], fileName: string, reportDate: string): Promise<void> {
     this.logger.log(`Processing employee report: ${fileName}, rows: ${data.length}`);
@@ -63,9 +65,7 @@ export class EmployeeReportService {
       this.logger.error(`Error processing file ${fileName}:`, error);
       throw error instanceof BadRequestException
         ? error
-        : new InternalServerErrorException(
-            error.message || 'Failed to process employee report JSON',
-          );
+        : new InternalServerErrorException(error.message || 'Failed to process employee report JSON');
     }
   }
 
@@ -94,7 +94,7 @@ export class EmployeeReportService {
     }
 
     const [year, month, day] = dateStr.split('-').map(Number);
-    return new Date(year, month - 1, day); // No time component
+    return new Date(year, month - 1, day);
   }
 
   private mapToEntity(raw: Record<string, unknown>, uploadedDate?: string): EmployeeReport | null {
@@ -111,16 +111,12 @@ export class EmployeeReportService {
     }
 
     const employeeName = normalizedRaw['Employee Name'];
-    if (!employeeName) {
-      this.logger.warn(`Skipping row due to missing employee name: ${JSON.stringify(raw)}`);
-      return null;
-    }
-
     const parsedUploadedDate = uploadedDate
       ? this.validateAndNormalizeDate(uploadedDate)
       : new Date();
 
     return {
+      id: undefined, // Let TypeORM generate UUID
       employeeName,
       businessUnitDescription: normalizedRaw['Business Unit Description'],
       businessUnitCode: normalizedRaw['Business Unit Code'],
@@ -134,53 +130,31 @@ export class EmployeeReportService {
     };
   }
 
-  private async insertOrUpdateTransactional(data: EmployeeReport[]) {
-    this.logger.log(`Starting insertOrUpdateTransactional for ${data.length} rows`);
+private async insertOrUpdateTransactional(data: EmployeeReport[]) {
+  this.logger.log(`Preparing to insert employee report rows: ${data.length}`);
 
+  if (data.length === 0) return;
+
+  const uploadedDate = data[0].uploadedDate;
+
+  await this.entityManager.transaction(async (manager) => {
+   
+    await manager.delete(EmployeeReport, { uploadedDate });
+    this.logger.log(`Deleted existing records for uploaded_date = ${uploadedDate.toISOString().split('T')[0]}`);
+
+ 
     const batchSize = 1000;
-    const columns = [
-      'employee_name',
-      'business_unit_description',
-      'business_unit_code',
-      'home_department_code',
-      'worked_department',
-      'pay_code_timecard',
-      'dollars',
-      'hours',
-      'shift',
-      'uploaded_date',
-    ];
+    for (let i = 0; i < data.length; i += batchSize) {
+      const chunk = data.slice(i, i + batchSize);
+      await manager.save(EmployeeReport, chunk);
+      this.logger.log(`Inserted rows ${i} to ${i + chunk.length - 1}`);
+    }
+  });
 
-    await this.entityManager.transaction(async (manager) => {
-      for (let i = 0; i < data.length; i += batchSize) {
-        const chunk = data.slice(i, i + batchSize);
-        const values: any[] = [];
+  this.logger.log('Completed insert: duplicates removed by replacing uploaded_date data');
+}
 
-        const placeholders = chunk.map((row) => {
-          const rowValues = columns.map((col) => {
-            const camelKey = this.snakeToCamel(col) as keyof EmployeeReport;
-            values.push(row[camelKey]);
-            return `$${values.length}`;
-          });
-          return `(${rowValues.join(', ')})`;
-        });
 
-        const query = `
-          INSERT INTO employee_reports (${columns.join(', ')})
-          VALUES ${placeholders.join(', ')}
-          ON CONFLICT (${this.identifyingFields.join(', ')})
-          DO UPDATE SET ${this.fieldsToUpdate
-            .map((f) => `${f} = EXCLUDED.${f}`)
-            .join(', ')};
-        `;
-
-        await manager.query(query, values);
-        this.logger.log(`Batch inserted/updated rows ${i} to ${i + chunk.length - 1}`);
-      }
-    });
-
-    this.logger.log(`Completed insertOrUpdateTransactional for all rows`);
-  }
 
   private snakeToCamel(s: string): string {
     return s.replace(/_([a-z])/g, (m, p1) => p1.toUpperCase());

@@ -19,29 +19,14 @@ export class EmployeeWeeklyService {
   ) {}
 
   private readonly expectedHeaders = [
-    'LEGAL LAST NAME',
-    'LEGAL FIRST NAME',
     'BUSINESS UNIT DESCRIPTION',
     'BUSINESS UNIT CODE',
     'HOME DEPARTMENT CODE',
     'PAY CODE',
     'DOLLARS',
     'HOURS',
-    'FULL NAME',
     'SHIFT',
   ];
-
-  private readonly conflictColumns = [
-    'start_date',
-    'end_date',
-    'legal_last_name',
-    'legal_first_name',
-    'pay_code',
-    'business_unit_code',
-    'home_department_code',
-  ];
-
-  private readonly fieldsToUpdate = ['dollars', 'hours', 'shift'];
 
   async process(
     data: any[],
@@ -91,7 +76,7 @@ export class EmployeeWeeklyService {
         return;
       }
 
-      await this.insertOrUpdateTransactional(mapped);
+      await this.replaceDataForWeek(mapped, startDate, endDate);
       this.logger.log(`Finished processing Employee Weekly Report: ${fileName}`);
     } catch (error: any) {
       this.logger.error(`Failed processing file: ${fileName}`, error);
@@ -102,15 +87,20 @@ export class EmployeeWeeklyService {
   }
 
   private normalizeHeader(header: string): string {
-    return header.toUpperCase().trim().replace(/\s+/g, ' ');
+    return header
+      .toUpperCase()
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/\[.*?\]/g, '') 
+      .trim();
   }
 
   private findHeaderRowIndex(data: any[]): number {
     const expected = this.expectedHeaders.map((h) => h.toUpperCase().trim());
     for (let i = 0; i < data.length; i++) {
       const rowHeaders = Object.keys(data[i]).map((h) => this.normalizeHeader(h));
-      if (rowHeaders.length === expected.length &&
-        rowHeaders.every((val, idx) => val === expected[idx])) {
+      const matchCount = expected.filter((h) => rowHeaders.includes(h)).length;
+      if (matchCount === expected.length) {
         return i;
       }
     }
@@ -120,13 +110,10 @@ export class EmployeeWeeklyService {
   private validateHeaders(received: string[]) {
     const expected = this.expectedHeaders.map((h) => h.toUpperCase());
     const missing = expected.filter((col) => !received.includes(col));
-    const extras = received.filter((col) => !expected.includes(col));
 
-    const issues: string[] = [];
-    if (missing.length) issues.push(`Missing: ${missing.join(', ')}`);
-    if (extras.length) issues.push(`Unexpected: ${extras.join(', ')}`);
-
-    if (issues.length) throw new BadRequestException(issues.join(' | '));
+    if (missing.length) {
+      throw new BadRequestException(`Missing columns: ${missing.join(', ')}`);
+    }
   }
 
   private parseDate(dateStr: string): Date {
@@ -134,7 +121,7 @@ export class EmployeeWeeklyService {
       throw new BadRequestException(`Invalid date format: ${dateStr}. Expected YYYY-MM-DD.`);
     }
     const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d, 12);
+    return new Date(y, m - 1, d, 12);  
   }
 
   private mapToEntity(
@@ -143,6 +130,9 @@ export class EmployeeWeeklyService {
     endDate: Date,
   ): EmployeeWeekly | null {
     const parseNumber = (val: unknown): number => {
+      if (typeof val === 'string') {
+        val = val.replace(/[$,]/g, '').trim();
+      }
       const n = Number(val);
       return isNaN(n) ? 0 : n;
     };
@@ -158,15 +148,12 @@ export class EmployeeWeeklyService {
       return {
         startDate,
         endDate,
-        legalLastName: get('LEGAL LAST NAME'),
-        legalFirstName: get('LEGAL FIRST NAME'),
         businessUnitDescription: get('BUSINESS UNIT DESCRIPTION'),
         businessUnitCode: get('BUSINESS UNIT CODE'),
         homeDepartmentCode: get('HOME DEPARTMENT CODE'),
         payCode: get('PAY CODE'),
         dollars: parseNumber(get('DOLLARS')),
         hours: parseNumber(get('HOURS')),
-        fullName: get('FULL NAME'),
         shift: get('SHIFT'),
       } as EmployeeWeekly;
     } catch (error: any) {
@@ -175,57 +162,32 @@ export class EmployeeWeeklyService {
     }
   }
 
-  private async insertOrUpdateTransactional(data: (EmployeeWeekly & { id: string })[]) {
+  private async replaceDataForWeek(
+    data: (EmployeeWeekly & { id: string })[],
+    startDate: Date,
+    endDate: Date,
+  ) {
     const batchSize = 1000;
 
-    const columns = [
-      'id',
-      'start_date',
-      'end_date',
-      'legal_last_name',
-      'legal_first_name',
-      'business_unit_description',
-      'business_unit_code',
-      'home_department_code',
-      'pay_code',
-      'dollars',
-      'hours',
-      'full_name',
-      'shift',
-    ];
-
     await this.entityManager.transaction(async (manager) => {
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(EmployeeWeekly)
+        .where('start_date = :startDate AND end_date = :endDate', { startDate, endDate })
+        .execute();
+
+      this.logger.log(
+        `Deleted existing records for start_date = ${startDate.toISOString().split('T')[0]} and end_date = ${endDate.toISOString().split('T')[0]}`
+      );
+
       for (let i = 0; i < data.length; i += batchSize) {
         const chunk = data.slice(i, i + batchSize);
-        const values: any[] = [];
-
-        const placeholders = chunk.map((row) => {
-          const rowValues = columns.map((col) => {
-            const camelCaseKey = this.snakeToCamel(col) as keyof EmployeeWeekly & keyof typeof row;
-            values.push(row[camelCaseKey]);
-            return `$${values.length}`;
-          });
-          return `(${rowValues.join(', ')})`;
-        });
-
-        const query = `
-          INSERT INTO employee_weekly (${columns.join(', ')})
-          VALUES ${placeholders.join(', ')}
-            ON CONFLICT (${this.conflictColumns.join(', ')})
-            DO UPDATE SET ${this.fieldsToUpdate
-            .map((f) => `${f} = EXCLUDED.${f}`)
-            .join(', ')};
-        `;
-
-        await manager.query(query, values);
-        this.logger.log(`Processed rows ${i + 1}-${i + chunk.length}`);
+        await manager.save(EmployeeWeekly, chunk);
+        this.logger.log(`Inserted weekly rows ${i + 1}-${i + chunk.length}`);
       }
     });
 
-    this.logger.log(`All ${data.length} records processed successfully.`);
-  }
-
-  private snakeToCamel(s: string): string {
-    return s.replace(/_([a-z])/g, (m, p1) => p1.toUpperCase());
+    this.logger.log(`Successfully replaced weekly data for ${startDate.toISOString()} - ${endDate.toISOString()}`);
   }
 }
