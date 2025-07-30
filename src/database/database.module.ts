@@ -9,6 +9,7 @@ import { DiverseWeeklyReport } from 'src/diverse_weekly/entities/diverse_weekly.
 import { HireDynamicsWeekly } from 'src/hire_dynamics_weekly/entities/hire_dynamics_weekly.entity';
 import { FreightBreakersWeekly } from 'src/freight_breakers_weekly/entities/freight_breakers_weekly.entity';
 import { EmployeeWeekly } from 'src/employee_weekly/entities/employee_weekly.entity';
+import {User} from "../users/entities/user.entity";
 
 
 @Module({
@@ -24,7 +25,7 @@ import { EmployeeWeekly } from 'src/employee_weekly/entities/employee_weekly.ent
                 password: configService.get<string>('PG_DB_PASSWORD'),
                 database: configService.get<string>('PG_DB_NAME'),
                 entities: [
-                    DailyReport,DiverseDailyReport,EmployeeReport,HorizonReport,DiverseWeeklyReport,HireDynamicsWeekly,FreightBreakersWeekly,EmployeeWeekly
+                    DailyReport,DiverseDailyReport,EmployeeReport,HorizonReport,DiverseWeeklyReport,HireDynamicsWeekly,FreightBreakersWeekly,EmployeeWeekly,User
                 ],
                 synchronize: true,
             }),

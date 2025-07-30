@@ -11,6 +11,8 @@ import { EmployeeWeeklyModule } from './employee_weekly/employee_weekly.module';
 import { DiverseWeeklyModule } from './diverse_weekly/diverse_weekly.module';
 import { HireDynamicsWeeklyModule } from './hire_dynamics_weekly/hire_dynamics_weekly.module';
 import { FreightBreakersWeeklyModule } from './freight_breakers_weekly/freight_breakers_weekly.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { FreightBreakersWeeklyModule } from './freight_breakers_weekly/freight_b
     DiverseWeeklyModule,
     HireDynamicsWeeklyModule,
     FreightBreakersWeeklyModule,
+    AuthModule,
+    UsersModule,
     
   ],
   controllers: [AppController],
