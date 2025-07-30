@@ -33,6 +33,7 @@ export class EmployeeWeeklyService {
     fileName: string,
     startDateStr: string | undefined,
     endDateStr: string | undefined,
+    username: string, 
   ): Promise<void> {
     this.logger.log(`Processing Employee Weekly Report: ${fileName}`);
 
@@ -64,7 +65,7 @@ export class EmployeeWeeklyService {
       );
 
       const mapped = rows
-        .map((row) => this.mapToEntity(row, startDate, endDate))
+        .map((row) => this.mapToEntity(row, startDate, endDate, username))  
         .filter((row): row is EmployeeWeekly => row !== null)
         .map((row) => ({
           ...row,
@@ -128,6 +129,7 @@ export class EmployeeWeeklyService {
     raw: Record<string, unknown>,
     startDate: Date,
     endDate: Date,
+    uploaded_by: string  
   ): EmployeeWeekly | null {
     const parseNumber = (val: unknown): number => {
       if (typeof val === 'string') {
@@ -155,6 +157,7 @@ export class EmployeeWeeklyService {
         dollars: parseNumber(get('DOLLARS')),
         hours: parseNumber(get('HOURS')),
         shift: get('SHIFT'),
+        uploaded_by,  
       } as EmployeeWeekly;
     } catch (error: any) {
       this.logger.warn(`Skipping row due to error: ${error.message}`);

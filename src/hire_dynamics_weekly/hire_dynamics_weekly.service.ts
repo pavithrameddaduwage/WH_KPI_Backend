@@ -41,8 +41,8 @@ export class HireDynamicsWeeklyService {
 
   private readonly dbColumnMap: Record<string, string> = {
     'Employee': 'employee_id',
-    'Start Date': 'start_date', // Injected, not expected in Excel
-    'End Date': 'end_date',     // Injected, not expected in Excel
+    'Start Date': 'start_date',
+    'End Date': 'end_date',
     'Department  (G3)': 'department_g3',
     'Work Date': 'work_date',
     'Approval Status': 'approval_status',
@@ -61,13 +61,15 @@ export class HireDynamicsWeeklyService {
     'DT': 'dt',
     'Daily Total': 'daily_total',
     'COUNT': 'count',
+    'uploaded_by': 'uploaded_by',  
   };
 
   async process(
     data: any[],
     fileName: string,
     startDateStr: string,
-    endDateStr: string
+    endDateStr: string,
+    username: string,
   ): Promise<void> {
     this.logger.log(`Processing Hire Dynamics Weekly Report: ${fileName}`);
 
@@ -79,8 +81,7 @@ export class HireDynamicsWeeklyService {
       const startDate = this.validateAndNormalizeDate(startDateStr);
       const endDate = this.validateAndNormalizeDate(endDateStr);
 
-      const firstRow = data[0];
-      const headers = Object.keys(firstRow).filter(h => h.trim() !== '');
+      const headers = Object.keys(data[0]).filter(h => h.trim() !== '');
       this.logger.debug(`Received headers: ${headers.join(', ')}`);
       this.validateHeaders(headers);
 
@@ -98,7 +99,7 @@ export class HireDynamicsWeeklyService {
       }
 
       const mapped = rows
-        .map(row => this.mapToEntity(row, startDate, endDate))
+        .map(row => this.mapToEntity(row, startDate, endDate, username))  
         .filter((row): row is HireDynamicsWeekly => row !== null);
 
       if (mapped.length === 0) return;
@@ -115,7 +116,6 @@ export class HireDynamicsWeeklyService {
 
   private validateHeaders(receivedHeaders: string[]) {
     const normalize = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-
     const expected = this.expectedHeaders.map(normalize);
     const received = receivedHeaders.map(normalize);
 
@@ -129,15 +129,15 @@ export class HireDynamicsWeeklyService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       throw new BadRequestException(`Invalid date format: "${dateStr}". Expected YYYY-MM-DD`);
     }
-
     const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d, 12);  
+    return new Date(y, m - 1, d, 12);
   }
 
   private mapToEntity(
     raw: Record<string, any>,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
+    uploaded_by: string,  
   ): HireDynamicsWeekly | null {
     const parseNumber = (val: unknown): number => {
       const n = Number(val);
@@ -148,6 +148,7 @@ export class HireDynamicsWeeklyService {
       'Employee': raw['Employee']?.toString().trim(),
       'Start Date': startDate,
       'End Date': endDate,
+      'uploaded_by': uploaded_by,  
     };
 
     if (!record['Employee']) return null;
@@ -163,35 +164,42 @@ export class HireDynamicsWeeklyService {
   }
 
   private async insertOrUpdateTransactional(data: HireDynamicsWeekly[]) {
-  const batchSize = 1000;
-  const allHeaders = ['Employee', 'Start Date', 'End Date', 'Work Date', ...this.expectedHeaders.filter(h => !['Employee', 'Work Date'].includes(h))];
-  const dbColumns = allHeaders.map(h => this.dbColumnMap[h]);
+    const batchSize = 1000;
+    const allHeaders = [
+      'Employee',
+      'Start Date',
+      'End Date',
+      'Work Date',
+      ...this.expectedHeaders.filter(h => !['Employee', 'Work Date'].includes(h)),
+      'uploaded_by', 
+    ];
+    const dbColumns = allHeaders.map(h => this.dbColumnMap[h]);
 
-  await this.entityManager.transaction(async (manager) => {
-    for (let i = 0; i < data.length; i += batchSize) {
-      const chunk = data.slice(i, i + batchSize);
-      const values: any[] = [];
+    await this.entityManager.transaction(async (manager) => {
+      for (let i = 0; i < data.length; i += batchSize) {
+        const chunk = data.slice(i, i + batchSize);
+        const values: any[] = [];
 
-      const placeholders = chunk.map((row) => {
-        const rowValues = allHeaders.map((header) => {
-          const value = row[header as keyof HireDynamicsWeekly];
-          values.push(value);
-          return `$${values.length}`;
+        const placeholders = chunk.map((row) => {
+          const rowValues = allHeaders.map((header) => {
+            const value = row[header as keyof HireDynamicsWeekly];
+            values.push(value);
+            return `$${values.length}`;
+          });
+          return `(${rowValues.join(', ')})`;
         });
-        return `(${rowValues.join(', ')})`;
-      });
 
-      const query = `
-        INSERT INTO hire_dynamics_weekly (${dbColumns.join(', ')})
-        VALUES ${placeholders.join(', ')}
-        ON CONFLICT (employee_id, start_date, end_date, work_date)
-        DO UPDATE SET ${dbColumns
-          .filter(col => !['employee_id', 'start_date', 'end_date', 'work_date'].includes(col))
-          .map(col => `${col} = EXCLUDED.${col}`).join(', ')};
-      `;
+        const query = `
+          INSERT INTO hire_dynamics_weekly (${dbColumns.join(', ')})
+          VALUES ${placeholders.join(', ')}
+          ON CONFLICT (employee_id, start_date, end_date, work_date)
+          DO UPDATE SET ${dbColumns
+            .filter(col => !['employee_id', 'start_date', 'end_date', 'work_date'].includes(col))
+            .map(col => `${col} = EXCLUDED.${col}`).join(', ')};
+        `;
 
-      await manager.query(query, values);
-    }
-  });
-}
+        await manager.query(query, values);
+      }
+    });
+  }
 }

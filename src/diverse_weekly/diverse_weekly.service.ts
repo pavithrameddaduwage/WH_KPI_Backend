@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   Injectable,
-  InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
@@ -17,7 +16,6 @@ export class DiverseWeeklyService {
     private readonly entityManager: EntityManager,
   ) {}
 
- 
   private readonly expectedHeaders = [
     'EMPLOYEE NAME',
     'EMPLOYEE PAYROLL ID',
@@ -39,13 +37,15 @@ export class DiverseWeeklyService {
     'reg',
     'ot1',
     'total',
+    'uploaded_by',
   ];
 
   async process(
     data: any[],
     fileName: string,
-    startDateStr: string, 
-    endDateStr: string,    
+    startDateStr: string,
+    endDateStr: string,
+    username: string,
   ): Promise<void> {
     this.logger.log(`Processing diverse weekly report: ${fileName}, rows: ${data.length}`);
 
@@ -53,16 +53,14 @@ export class DiverseWeeklyService {
       throw new BadRequestException('No data provided');
     }
 
- 
     const headerRowIndex = this.findHeaderRowIndex(data);
     if (headerRowIndex === -1) {
       throw new BadRequestException('Valid header row not found in uploaded file.');
     }
- 
+
     const headerKeys = Object.keys(data[headerRowIndex]).map(h => h.trim().toUpperCase());
     this.validateHeaders(headerKeys);
 
-  
     const dataRows = data.slice(headerRowIndex + 1);
     if (dataRows.length === 0) {
       throw new BadRequestException('No data rows found after header.');
@@ -72,19 +70,17 @@ export class DiverseWeeklyService {
     const endDate = this.parseDate(endDateStr);
 
     const mapped = dataRows
-      .map((row) => this.mapToEntity(row, startDate, endDate))
+      .map((row) => this.mapToEntity(row, startDate, endDate, username))
       .filter((row): row is DiverseWeeklyReport => row !== null);
 
     await this.insertOrUpdateTransactional(mapped);
   }
 
- 
   private findHeaderRowIndex(data: any[]): number {
     const normalizedExpected = this.expectedHeaders.map(h => h.trim().toUpperCase());
 
     for (let i = 0; i < data.length; i++) {
       const keys = Object.keys(data[i]).map(k => k.trim().toUpperCase());
-
       if (
         keys.length === normalizedExpected.length &&
         keys.every((key, idx) => key === normalizedExpected[idx])
@@ -92,8 +88,7 @@ export class DiverseWeeklyService {
         return i;
       }
     }
-
-    return -1;  
+    return -1;
   }
 
   private validateHeaders(receivedHeaders: string[]) {
@@ -124,6 +119,7 @@ export class DiverseWeeklyService {
     raw: Record<string, unknown>,
     startDate: Date,
     endDate: Date,
+    uploaded_by: string
   ): DiverseWeeklyReport | null {
     const parseNumber = (val: unknown): number => {
       const n = Number(val);
@@ -153,6 +149,7 @@ export class DiverseWeeklyService {
         reg: parseNumber(get('REG')),
         ot1: parseNumber(get('OT1')),
         total: parseNumber(get('TOTAL')),
+        uploaded_by,
       };
     } catch (error) {
       this.logger.warn(`Skipping row due to error: ${error.message}`);
@@ -175,6 +172,7 @@ export class DiverseWeeklyService {
       'reg',
       'ot1',
       'total',
+      'uploaded_by',
     ];
 
     await this.entityManager.transaction(async (manager) => {
@@ -184,8 +182,8 @@ export class DiverseWeeklyService {
 
         const placeholders = chunk.map((row) => {
           const rowValues = columns.map((col) => {
-            const camelKey = this.snakeToCamel(col) as keyof DiverseWeeklyReport;
-            values.push(row[camelKey]);
+            const value = (row as any)[col] ?? (row as any)[this.snakeToCamel(col)];
+            values.push(value);
             return `$${values.length}`;
           });
           return `(${rowValues.join(', ')})`;

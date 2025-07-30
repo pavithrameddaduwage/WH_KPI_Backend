@@ -75,21 +75,22 @@ export class UploadService {
       if (!startDate || !endDate) {
         throw new BadRequestException('Missing startDate or endDate for employee_weekly');
       }
-      await this.employeeWeeklyReportService.process(data, fileName, startDate, endDate);
+      await this.employeeWeeklyReportService.process(data, fileName, startDate, endDate ,username);
       break;
 
       case 'diverse_weekly':
         if (!startDate || !endDate) {
           throw new BadRequestException('Missing startDate or endDate for diverse_weekly');
         }
-        await this.diverseWeeklyReportService.process(data, fileName, startDate, endDate);
+        await this.diverseWeeklyReportService.process(data, fileName, startDate, endDate ,username);
         break;
+       
 
       case 'hire_dynamics_weekly':
         if (!startDate || !endDate) {
           throw new BadRequestException('Missing startDate or endDate for hire_dynamics_weekly');
         }
-        await this.hireDynamicsReportService.process(data, fileName, startDate, endDate );
+        await this.hireDynamicsReportService.process(data, fileName, startDate, endDate ,username);
         break;
 
       case 'freight_breakers_weekly':
