@@ -1,7 +1,8 @@
+import { BaseEntity } from 'src/common/base.entity';
 import { Entity, Column, PrimaryColumn } from 'typeorm';
 
 @Entity('horizon_reports')
-export class HorizonReport {
+export class HorizonReport extends BaseEntity {
   @PrimaryColumn({ type: 'date', name: 'uploaded_date' })
 uploadedDate: Date;
 

@@ -7,6 +7,6 @@ import {
 export abstract class BaseEntity {
 
     @CreateDateColumn()
-    uploded_date?: Date;
+    file_uploded_date?: Date;
 
 }

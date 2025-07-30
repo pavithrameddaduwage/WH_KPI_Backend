@@ -1,3 +1,4 @@
+import { BaseEntity } from 'src/common/base.entity';
 import {
   Entity,
   Column,
@@ -7,7 +8,7 @@ import {
 
 @Entity({ name: 'employee_weekly' })
 @Index('idx_employee_weekly_keys', ['startDate', 'endDate', 'payCode', 'businessUnitCode', 'homeDepartmentCode'])
-export class EmployeeWeekly {
+export class EmployeeWeekly extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

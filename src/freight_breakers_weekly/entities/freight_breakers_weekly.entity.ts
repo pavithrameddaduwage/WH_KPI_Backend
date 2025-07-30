@@ -1,7 +1,8 @@
+import { BaseEntity } from 'src/common/base.entity';
 import { Entity, Column, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'freight_breakers_weekly' })
-export class FreightBreakersWeekly {
+export class FreightBreakersWeekly extends BaseEntity  {
   @PrimaryColumn('date', { name: 'start_date' })
   StartDate: Date;
 

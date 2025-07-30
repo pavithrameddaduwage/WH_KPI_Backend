@@ -1,7 +1,8 @@
+import { BaseEntity } from 'src/common/base.entity';
 import { Entity, Column, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'diverse_weekly_reports' })
-export class DiverseWeeklyReport {
+export class DiverseWeeklyReport extends BaseEntity {
   @PrimaryColumn({ name: 'employee_payroll_id' })
   employeePayrollId: string;
 

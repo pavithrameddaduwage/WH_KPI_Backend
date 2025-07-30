@@ -1,7 +1,8 @@
+import { BaseEntity } from 'src/common/base.entity';
 import { Entity, Column, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'hire_dynamics_weekly' })
-export class HireDynamicsWeekly {
+export class HireDynamicsWeekly extends BaseEntity {
   @PrimaryColumn('varchar', { name: 'employee_id' })
   'Employee': string;
 
