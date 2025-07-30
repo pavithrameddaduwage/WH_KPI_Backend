@@ -1,7 +1,8 @@
+import { BaseEntity } from 'src/common/base.entity';
 import { Column, Entity, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'diverse_daily_reports' })
-export class DiverseDailyReport {
+export class DiverseDailyReport extends BaseEntity {
   @PrimaryColumn({ name: 'uploaded_date', type: 'date' })
   uploadedDate: Date;
 
