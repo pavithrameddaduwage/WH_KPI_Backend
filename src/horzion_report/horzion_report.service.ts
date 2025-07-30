@@ -66,9 +66,15 @@ export class HorzionReportService {
     'near_misses',
     'incidents',
     'accidents',
+    'uploaded_by',
   ];
 
-  async process(data: any[], fileName: string, uploadedDate: string): Promise<void> {
+  async process(
+    data: any[],
+    fileName: string,
+    uploadedDate: string,
+    uploaded_by: string,
+  ): Promise<void> {
     this.logger.log(`Processing Horizon Report: ${fileName}`);
 
     try {
@@ -79,12 +85,12 @@ export class HorzionReportService {
       const parsedDate = this.validateAndNormalizeDate(uploadedDate);
 
       const headerRow = data[1];
-     const headerMap = Object.entries(headerRow)
-  .filter(([_, val]) => typeof val === 'string' && val.trim() !== '')
-  .reduce((acc, [key, val]) => {
-    acc[key] = (val as string).replace(/\s+/g, ' ').trim();
-    return acc;
-  }, {} as Record<string, string>);
+      const headerMap = Object.entries(headerRow)
+        .filter(([_, val]) => typeof val === 'string' && val.trim() !== '')
+        .reduce((acc, [key, val]) => {
+          acc[key] = (val as string).replace(/\s+/g, ' ').trim();
+          return acc;
+        }, {} as Record<string, string>);
 
       const headers = Object.values(headerMap);
       this.validateHeaders(headers);
@@ -103,7 +109,7 @@ export class HorzionReportService {
       }
 
       const mapped = rows
-        .map(row => this.mapToEntityWithHeaderMap(row, headerMap, parsedDate))
+        .map(row => this.mapToEntityWithHeaderMap(row, headerMap, parsedDate, uploaded_by))
         .filter((row): row is HorizonReport => row !== null);
 
       if (mapped.length === 0) return;
@@ -141,7 +147,8 @@ export class HorzionReportService {
   private mapToEntityWithHeaderMap(
     raw: Record<string, any>,
     headerMap: Record<string, string>,
-    uploadedDate: Date
+    uploadedDate: Date,
+    uploaded_by: string,
   ): HorizonReport | null {
     const parseNumber = (val: unknown): number => {
       const n = Number(val);
@@ -181,6 +188,7 @@ export class HorzionReportService {
       nearMisses: parseNumber(getVal('Near Misses')),
       incidents: parseNumber(getVal('Incidents')),
       accidents: parseNumber(getVal('Accidents')),
+      uploaded_by,
     };
   }
 
@@ -195,8 +203,8 @@ export class HorzionReportService {
 
         const placeholders = chunk.map((row) => {
           const rowValues = columns.map((col) => {
-            const camelKey = this.snakeToCamel(col) as keyof HorizonReport;
-            values.push(row[camelKey]);
+            const value = (row as any)[col] ?? (row as any)[this.snakeToCamel(col)];
+            values.push(value);
             return `$${values.length}`;
           });
           return `(${rowValues.join(', ')})`;

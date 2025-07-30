@@ -52,7 +52,7 @@ export class UploadService {
     switch (fileType) {
       case 'diversedaily':
         if (!reportDate) throw new BadRequestException('Missing reportDate for diversedaily');
-        await this.diverseDailyReportService.process(data, fileName, reportDate  );
+        await this.diverseDailyReportService.process(data, fileName, reportDate ,username );
         break;
 
       case 'employeeTotal':
@@ -63,12 +63,12 @@ export class UploadService {
 
       case 'horizon':
         if (!reportDate) throw new BadRequestException('Missing reportDate for horizon');
-        await this.horizonReportService.process(data, fileName, reportDate);
+        await this.horizonReportService.process(data, fileName, reportDate,username);
         break;
 
       case 'labor':
         if (!reportDate) throw new BadRequestException('Missing reportDate for labor');
-        await this.dailyReportService.process(data, fileName, reportDate);
+        await this.dailyReportService.process(data, fileName, reportDate,username);
         break;
 
       case 'employee_weekly':

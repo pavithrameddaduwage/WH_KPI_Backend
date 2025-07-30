@@ -44,6 +44,7 @@ export class DailyReportService {
     'ot_1_pay',
     'total_hrs',
     'total_pay',
+    'uploaded_by',
   ];
 
   private readonly chunkBuffer = new Map<string, DailyReport[]>();
@@ -56,6 +57,7 @@ export class DailyReportService {
     fileType: string,
     isLastChunk: boolean,
     reportDate?: string,
+    uploaded_by?: string,
   ): Promise<void> {
     this.logger.log(
       `processChunk called - fileName: ${fileName}, chunkIndex: ${chunkIndex}, totalChunks: ${totalChunks}, isLastChunk: ${isLastChunk}`,
@@ -67,7 +69,7 @@ export class DailyReportService {
       }
 
       const mapped = rows
-        .map((row) => this.mapToEntity(row, reportDate))
+        .map((row) => this.mapToEntity(row, reportDate, uploaded_by))
         .filter((row): row is DailyReport => row !== null);
 
       if (!this.chunkBuffer.has(fileName)) {
@@ -95,7 +97,12 @@ export class DailyReportService {
     }
   }
 
-  async process(data: any[], fileName: string, reportDate: string): Promise<void> {
+  async process(
+    data: any[],
+    fileName: string,
+    reportDate: string,
+    uploaded_by: string,
+  ): Promise<void> {
     this.logger.log(`Processing full JSON file: ${fileName}, rows: ${data.length}`);
 
     try {
@@ -106,7 +113,7 @@ export class DailyReportService {
       this.validateHeaders(Object.keys(data[0]));
 
       const mapped = data
-        .map((row) => this.mapToEntity(row, reportDate))
+        .map((row) => this.mapToEntity(row, reportDate, uploaded_by))
         .filter((row): row is DailyReport => row !== null);
 
       await this.insertOrUpdateTransactional(mapped);
@@ -138,20 +145,22 @@ export class DailyReportService {
     }
   }
 
- private validateAndNormalizeDate(dateStr: string): Date {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    throw new BadRequestException(
-      `Invalid uploadedDate format: "${dateStr}". Expected format: YYYY-MM-DD.`,
-    );
+  private validateAndNormalizeDate(dateStr: string): Date {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      throw new BadRequestException(
+        `Invalid uploadedDate format: "${dateStr}". Expected format: YYYY-MM-DD.`,
+      );
+    }
+
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day, 12, 0, 0);
   }
 
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const localDate = new Date(year, month - 1, day, 12, 0, 0);
-  return localDate;
-}
-
-
-  private mapToEntity(raw: Record<string, unknown>, uploadedDate?: string): DailyReport | null {
+  private mapToEntity(
+    raw: Record<string, unknown>,
+    uploadedDate?: string,
+    uploaded_by?: string,
+  ): DailyReport | null {
     const parseNumberOrZero = (val: unknown): number => {
       const n = Number(val);
       return isNaN(n) ? 0 : n;
@@ -160,7 +169,8 @@ export class DailyReportService {
     const normalizedRaw: Record<string, string> = {};
     for (const [key, value] of Object.entries(raw)) {
       const normalizedKey = key.replace(/\s+/g, ' ').trim();
-      normalizedRaw[normalizedKey] = typeof value === 'string' ? value.trim() : String(value ?? '');
+      normalizedRaw[normalizedKey] =
+        typeof value === 'string' ? value.trim() : String(value ?? '');
     }
 
     const employee = normalizedRaw['Employee'];
@@ -189,57 +199,62 @@ export class DailyReportService {
       totalHrs: parseNumberOrZero(normalizedRaw['Total Hrs']),
       totalPay: parseNumberOrZero(normalizedRaw['Total Pay']),
       uploadedDate: parsedUploadedDate,
+      uploaded_by,
+
     };
   }
 
   private async insertOrUpdateTransactional(data: DailyReport[]) {
-    this.logger.log(`Starting insertOrUpdateTransactional for ${data.length} rows`);
-    const batchSize = 1000;
-    const columns = [
-      'employee',
-      'shift_g4',
-      'department_g3',
-      'date',
-      'reg_hrs',
-      'reg_pay',
-      'reg_rate',
-      'ot',
-      'ot_1_pay',
-      'total_hrs',
-      'total_pay',
-      'uploaded_date',
-    ];
+  this.logger.log(`Starting insertOrUpdateTransactional for ${data.length} rows`);
+  const batchSize = 1000;
 
-    await this.entityManager.transaction(async (manager) => {
-      for (let i = 0; i < data.length; i += batchSize) {
-        const chunk = data.slice(i, i + batchSize);
-        const values: any[] = [];
+  const columns = [
+    'employee',
+    'shift_g4',
+    'department_g3',
+    'date',
+    'reg_hrs',
+    'reg_pay',
+    'reg_rate',
+    'ot',
+    'ot_1_pay',
+    'total_hrs',
+    'total_pay',
+    'uploaded_date',
+    'uploaded_by',
+  ];
 
-        const placeholders = chunk.map((row) => {
-          const rowValues = columns.map((col) => {
-            const camelKey = this.snakeToCamel(col) as keyof DailyReport;
-            values.push(row[camelKey]);
-            return `$${values.length}`;
-          });
-          return `(${rowValues.join(', ')})`;
+  await this.entityManager.transaction(async (manager) => {
+    for (let i = 0; i < data.length; i += batchSize) {
+      const chunk = data.slice(i, i + batchSize);
+      const values: any[] = [];
+
+      const placeholders = chunk.map((row) => {
+        const rowValues = columns.map((col) => {
+          const camelKey = this.snakeToCamel(col);
+          const value = (row as any)[col] ?? (row as any)[camelKey];
+          values.push(value);
+          return `$${values.length}`;
         });
+        return `(${rowValues.join(', ')})`;
+      });
 
-        const query = `
-          INSERT INTO daily_reports (${columns.join(', ')})
-          VALUES ${placeholders.join(', ')}
-          ON CONFLICT (${this.identifyingFields.join(', ')})
-          DO UPDATE SET ${this.fieldsToUpdate
-            .map((f) => `${f} = EXCLUDED.${f}`)
-            .join(', ')};
-        `;
+      const query = `
+        INSERT INTO daily_reports (${columns.join(', ')})
+        VALUES ${placeholders.join(', ')}
+        ON CONFLICT (${this.identifyingFields.join(', ')})
+        DO UPDATE SET ${this.fieldsToUpdate
+          .map((f) => `${f} = EXCLUDED.${f}`)
+          .join(', ')};
+      `;
 
-        await manager.query(query, values);
-        this.logger.log(`Batch inserted/updated rows ${i} to ${i + chunk.length - 1}`);
-      }
-    });
+      await manager.query(query, values);
+      this.logger.log(`Batch inserted/updated rows ${i} to ${i + chunk.length - 1}`);
+    }
+  });
 
-    this.logger.log(`Completed insertOrUpdateTransactional for all rows`);
-  }
+  this.logger.log(`Completed insertOrUpdateTransactional for all rows`);
+}
 
   private snakeToCamel(s: string): string {
     return s.replace(/_([a-z])/g, (m, p1) => p1.toUpperCase());

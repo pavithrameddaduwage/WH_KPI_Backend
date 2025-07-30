@@ -42,9 +42,10 @@ export class DiverseDailyReportService {
     'total',
     'date',
     'usd_cost',
+    'uploaded_by',
   ];
 
-  async process(data: any[], fileName: string, reportDate: string): Promise<void> {
+  async process(data: any[], fileName: string, reportDate: string, uploaded_by: string): Promise<void> {
     try {
       if (data.length === 0) {
         throw new BadRequestException('No data provided');
@@ -83,7 +84,7 @@ export class DiverseDailyReportService {
       this.validateHeaders(headers);
 
       const mapped = structuredRows
-        .map((row) => this.mapToEntity(row, parsedReportDate))
+        .map((row) => this.mapToEntity(row, parsedReportDate, uploaded_by))
         .filter((row): row is DiverseDailyReport => row !== null);
 
       if (mapped.length === 0) {
@@ -127,6 +128,7 @@ export class DiverseDailyReportService {
   private mapToEntity(
     raw: Record<string, unknown>,
     uploadedDate: Date,
+    uploaded_by: string,
   ): DiverseDailyReport | null {
     const parseNumber = (val: unknown): number => {
       const n = Number(val);
@@ -168,6 +170,7 @@ export class DiverseDailyReportService {
       total: parseNumber(normalizedRaw['TOTAL']),
       date: parsedDate,
       usdCost: parseNumber(normalizedRaw['USD COST']),
+      uploaded_by,
     };
   }
 
@@ -193,6 +196,7 @@ export class DiverseDailyReportService {
       'total',
       'date',
       'usd_cost',
+      'uploaded_by',
     ];
 
     await this.entityManager.transaction(async (manager) => {
@@ -202,8 +206,8 @@ export class DiverseDailyReportService {
 
         const placeholders = chunk.map((row) => {
           const rowValues = columns.map((col) => {
-            const camelKey = this.snakeToCamel(col) as keyof DiverseDailyReport;
-            values.push(row[camelKey]);
+            const value = (row as any)[col] ?? (row as any)[this.snakeToCamel(col)];
+            values.push(value);
             return `$${values.length}`;
           });
           return `(${rowValues.join(', ')})`;
