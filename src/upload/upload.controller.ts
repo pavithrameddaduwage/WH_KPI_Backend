@@ -1,5 +1,7 @@
-import { Controller, Post, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, BadRequestException, Req, UseGuards } from '@nestjs/common';
 import { UploadService } from './upload.service';
+import {AuthGuard} from "../auth/auth.guard";
+
 
 const allowedFileTypes = [
   'diversedaily',
@@ -18,9 +20,12 @@ type FileType = typeof allowedFileTypes[number];
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
+  @UseGuards(AuthGuard)
   @Post()
-  async uploadJsonData(@Body() payload: any): Promise<{ message: string }> {
+  async uploadJsonData(@Req() req, @Body() payload: any): Promise<{ message: string }> {
     const { fileType } = payload;
+    const username = req.user?.name;
+
 
     if (!allowedFileTypes.includes(fileType)) {
       console.error(`Upload failed: Invalid fileType received - ${fileType}`);
@@ -28,10 +33,9 @@ export class UploadController {
     }
 
     try {
-      await this.uploadService.handleJsonUpload(payload);
+      await this.uploadService.handleJsonUpload(payload, username);
     } catch (error) {
       console.error('UploadService error:', error);
-  
       throw error;
     }
 
