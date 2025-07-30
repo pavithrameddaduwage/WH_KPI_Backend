@@ -31,7 +31,6 @@ export class AuthService {
 
   async authenticateuser(username: string, password: string): Promise<boolean> {
 
-    console.log("===============>",username, password);
     try {
       const authentication = await new Promise<boolean>((resolve, reject) => {
         ad.authenticate(username, password, (err: any, auth: boolean) => {
@@ -44,7 +43,6 @@ export class AuthService {
         });
       });
 
-      console.log("=============>",authentication);
 
       return authentication;
     } catch (error) {
@@ -77,9 +75,6 @@ export class AuthService {
 
     username = username.indexOf('@') > 0 ? username.slice(0, username.indexOf('@')) : username;
     username = username.toLowerCase();
-
-    console.log("username==========>",username)
-
 
     let adusername = username + '@hgusa.com';
 

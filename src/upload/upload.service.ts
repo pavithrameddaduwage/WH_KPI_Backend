@@ -89,7 +89,7 @@ export class UploadService {
         if (!startDate || !endDate) {
           throw new BadRequestException('Missing startDate or endDate for hire_dynamics_weekly');
         }
-        await this.hireDynamicsReportService.process(data, fileName, startDate, endDate);
+        await this.hireDynamicsReportService.process(data, fileName, startDate, endDate );
         break;
 
       case 'freight_breakers_weekly':
