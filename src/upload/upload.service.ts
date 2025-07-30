@@ -37,18 +37,22 @@ export class UploadService {
     reportDate?: string;
     startDate?: string;
     endDate?: string;
-    data: any[];
-  }): Promise<{ success: boolean }> {
+    data: any[]; }, username:string): Promise<{ success: boolean }> {
     const { fileType, fileName, reportDate, data, startDate, endDate } = payload;
+
+
+
 
     if (!fileType || !fileName || !Array.isArray(data) || data.length === 0) {
       throw new BadRequestException('Invalid upload payload');
     }
 
+
+
     switch (fileType) {
       case 'diversedaily':
         if (!reportDate) throw new BadRequestException('Missing reportDate for diversedaily');
-        await this.diverseDailyReportService.process(data, fileName, reportDate);
+        await this.diverseDailyReportService.process(data, fileName, reportDate  );
         break;
 
       case 'employeeTotal':
@@ -92,7 +96,7 @@ export class UploadService {
         if (!startDate || !endDate) {
           throw new BadRequestException('Missing startDate or endDate for freight_breakers_weekly');
         }
-        await this.freightBreakersReportService.process(data, fileName, startDate, endDate);
+        await this.freightBreakersReportService.process(data, fileName, startDate, endDate,username);
         break;
 
       default:
