@@ -57,7 +57,7 @@ export class UploadService {
 
       case 'employeeTotal':
         if (!reportDate) throw new BadRequestException('Missing reportDate for employeeTotal');
-       await this.employeeReportService.process(data, fileName,reportDate);
+       await this.employeeReportService.process(data, fileName,reportDate,username);
 
         break;
 

@@ -29,7 +29,6 @@ export class EmployeeReportService {
     'Shift',
   ];
 
-  // Update this to reflect the new UNIQUE constraint
   private readonly identifyingFields = [
     'uploaded_date',
     'business_unit_code',
@@ -46,7 +45,12 @@ export class EmployeeReportService {
     'business_unit_description',
   ];
 
-  async process(data: any[], fileName: string, reportDate: string): Promise<void> {
+  async process(
+    data: any[],
+    fileName: string,
+    reportDate: string,
+    username: string, // ✅ New parameter
+  ): Promise<void> {
     this.logger.log(`Processing employee report: ${fileName}, rows: ${data.length}`);
 
     try {
@@ -57,7 +61,7 @@ export class EmployeeReportService {
       this.validateHeaders(Object.keys(data[0]));
 
       const mapped = data
-        .map((row) => this.mapToEntity(row, reportDate))
+        .map((row) => this.mapToEntity(row, reportDate, username)) // ✅ Pass username
         .filter((row): row is EmployeeReport => row !== null);
 
       await this.insertOrUpdateTransactional(mapped);
@@ -97,7 +101,11 @@ export class EmployeeReportService {
     return new Date(year, month - 1, day);
   }
 
-  private mapToEntity(raw: Record<string, unknown>, uploadedDate?: string): EmployeeReport | null {
+  private mapToEntity(
+    raw: Record<string, unknown>,
+    uploadedDate?: string,
+    uploaded_by?: string, // ✅ Include username
+  ): EmployeeReport | null {
     const parseNumberOrZero = (val: unknown): number => {
       const n = Number(val);
       return isNaN(n) ? 0 : n;
@@ -127,34 +135,34 @@ export class EmployeeReportService {
       hours: parseNumberOrZero(normalizedRaw['Hours']),
       shift: normalizedRaw['Shift'],
       uploadedDate: parsedUploadedDate,
-    };
+      uploaded_by, // ✅ Assign it here
+    } as EmployeeReport;
   }
 
-private async insertOrUpdateTransactional(data: EmployeeReport[]) {
-  this.logger.log(`Preparing to insert employee report rows: ${data.length}`);
+  private async insertOrUpdateTransactional(data: EmployeeReport[]) {
+    this.logger.log(`Preparing to insert employee report rows: ${data.length}`);
 
-  if (data.length === 0) return;
+    if (data.length === 0) return;
 
-  const uploadedDate = data[0].uploadedDate;
+    const uploadedDate = data[0].uploadedDate;
 
-  await this.entityManager.transaction(async (manager) => {
-   
-    await manager.delete(EmployeeReport, { uploadedDate });
-    this.logger.log(`Deleted existing records for uploaded_date = ${uploadedDate.toISOString().split('T')[0]}`);
+    await this.entityManager.transaction(async (manager) => {
+      await manager.delete(EmployeeReport, { uploadedDate });
 
- 
-    const batchSize = 1000;
-    for (let i = 0; i < data.length; i += batchSize) {
-      const chunk = data.slice(i, i + batchSize);
-      await manager.save(EmployeeReport, chunk);
-      this.logger.log(`Inserted rows ${i} to ${i + chunk.length - 1}`);
-    }
-  });
+      this.logger.log(
+        `Deleted existing records for uploaded_date = ${uploadedDate.toISOString().split('T')[0]}`,
+      );
 
-  this.logger.log('Completed insert: duplicates removed by replacing uploaded_date data');
-}
+      const batchSize = 1000;
+      for (let i = 0; i < data.length; i += batchSize) {
+        const chunk = data.slice(i, i + batchSize);
+        await manager.save(EmployeeReport, chunk);
+        this.logger.log(`Inserted rows ${i + 1} to ${i + chunk.length}`);
+      }
+    });
 
-
+    this.logger.log('Completed insert: duplicates removed by replacing uploaded_date data');
+  }
 
   private snakeToCamel(s: string): string {
     return s.replace(/_([a-z])/g, (m, p1) => p1.toUpperCase());
