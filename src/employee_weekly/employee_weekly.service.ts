@@ -33,7 +33,7 @@ export class EmployeeWeeklyService {
     fileName: string,
     startDateStr: string | undefined,
     endDateStr: string | undefined,
-    username: string, 
+    username: string,
   ): Promise<void> {
     this.logger.log(`Processing Employee Weekly Report: ${fileName}`);
 
@@ -65,7 +65,7 @@ export class EmployeeWeeklyService {
       );
 
       const mapped = rows
-        .map((row) => this.mapToEntity(row, startDate, endDate, username))  
+        .map((row) => this.mapToEntity(row, startDate, endDate, username))
         .filter((row): row is EmployeeWeekly => row !== null)
         .map((row) => ({
           ...row,
@@ -92,7 +92,7 @@ export class EmployeeWeeklyService {
       .toUpperCase()
       .trim()
       .replace(/\s+/g, ' ')
-      .replace(/\[.*?\]/g, '') 
+      .replace(/\[.*?\]/g, '')
       .trim();
   }
 
@@ -122,14 +122,14 @@ export class EmployeeWeeklyService {
       throw new BadRequestException(`Invalid date format: ${dateStr}. Expected YYYY-MM-DD.`);
     }
     const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d, 12);  
+    return new Date(y, m - 1, d); // Removes time, midnight
   }
 
   private mapToEntity(
     raw: Record<string, unknown>,
     startDate: Date,
     endDate: Date,
-    uploaded_by: string  
+    uploaded_by: string
   ): EmployeeWeekly | null {
     const parseNumber = (val: unknown): number => {
       if (typeof val === 'string') {
@@ -157,7 +157,7 @@ export class EmployeeWeeklyService {
         dollars: parseNumber(get('DOLLARS')),
         hours: parseNumber(get('HOURS')),
         shift: get('SHIFT'),
-        uploaded_by,  
+        uploaded_by,
       } as EmployeeWeekly;
     } catch (error: any) {
       this.logger.warn(`Skipping row due to error: ${error.message}`);
@@ -173,16 +173,17 @@ export class EmployeeWeeklyService {
     const batchSize = 1000;
 
     await this.entityManager.transaction(async (manager) => {
+      this.logger.log(`Deleting existing records for startDate=${startDate.toISOString().split('T')[0]} and endDate=${endDate.toISOString().split('T')[0]}`);
+
+      const existing = await manager.find(EmployeeWeekly, { where: { startDate, endDate } });
+      this.logger.log(`Found ${existing.length} existing records.`);
+
       await manager
         .createQueryBuilder()
         .delete()
         .from(EmployeeWeekly)
         .where('start_date = :startDate AND end_date = :endDate', { startDate, endDate })
         .execute();
-
-      this.logger.log(
-        `Deleted existing records for start_date = ${startDate.toISOString().split('T')[0]} and end_date = ${endDate.toISOString().split('T')[0]}`
-      );
 
       for (let i = 0; i < data.length; i += batchSize) {
         const chunk = data.slice(i, i + batchSize);
