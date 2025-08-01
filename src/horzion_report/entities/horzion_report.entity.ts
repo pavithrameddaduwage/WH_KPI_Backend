@@ -4,17 +4,16 @@ import { Entity, Column, PrimaryColumn } from 'typeorm';
 @Entity('horizon_reports')
 export class HorizonReport extends BaseEntity {
   @PrimaryColumn({ type: 'date', name: 'uploaded_date' })
-uploadedDate: Date;
+  uploadedDate: Date;
 
-@PrimaryColumn({ type: 'varchar', name: 'shift' })
-shift: string;
+  @PrimaryColumn({ type: 'varchar', name: 'shift' })
+  shift: string;
 
+  @Column('int', { name: 'total_scheduled_lumpers', nullable: true })
+  totalScheduledLumpers: number;
 
-  @Column('int', { name: 'total_scheduled', nullable: true })
-  totalScheduled: number;
-
-  @Column('int', { name: 'total_present', nullable: true })
-  totalPresent: number;
+  @Column('int', { name: 'total_present_lumpers', nullable: true })
+  totalPresentLumpers: number;
 
   @Column('int', { name: 'late', nullable: true })
   late: number;
@@ -52,9 +51,8 @@ shift: string;
   @Column('int', { name: 'total_cases_closed_for_the_day', nullable: true })
   totalCasesClosedForTheDay: number;
 
-@Column('int', { name: 'total_containers_carried_over_to_the_next_day', nullable: true })
-totalContainersCarriedOverToNextDay: number;
-
+  @Column('int', { name: 'total_containers_carried_over_to_the_next_day', nullable: true })
+  totalContainersCarriedOverToTheNextDay: number;
 
   @Column('float', { name: 'total_hours_for_the_day', nullable: true })
   totalHoursForTheDay: number;
@@ -62,7 +60,7 @@ totalContainersCarriedOverToNextDay: number;
   @Column('float', { name: 'cpm_for_the_day', nullable: true })
   cpmForTheDay: number;
 
-  @Column('int', { name: 'number_of_skus', nullable: true })
+  @Column('numeric', { name: 'number_of_skus', nullable: true })
   numberOfSkus: number;
 
   @Column('int', { name: 'near_misses', nullable: true })

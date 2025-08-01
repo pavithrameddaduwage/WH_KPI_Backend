@@ -17,15 +17,16 @@ export class DiverseWeeklyService {
   ) {}
 
   private readonly expectedHeaders = [
-    'EMPLOYEE NAME',
-    'EMPLOYEE PAYROLL ID',
-    'FIRST NAME',
-    'LAST NAME',
-    'DEPARTMENT NAME',
-    'REG',
-    'OT1',
-    'TOTAL',
-  ];
+  'EMPLOYEE NAME',
+  'EMPLOYEE PAYROLL ID',
+  'FIRST NAME',
+  'LAST NAME',
+  'DEPARTMENT NAME',
+  'REG',
+  'OT1',
+  'TOTAL',
+  'BILL RATE',
+];
 
   private readonly identifyingFields = ['employee_payroll_id', 'start_date', 'end_date'];
 
@@ -37,6 +38,7 @@ export class DiverseWeeklyService {
     'reg',
     'ot1',
     'total',
+    'bill_rate',
     'uploaded_by',
   ];
 
@@ -149,6 +151,7 @@ export class DiverseWeeklyService {
         reg: parseNumber(get('REG')),
         ot1: parseNumber(get('OT1')),
         total: parseNumber(get('TOTAL')),
+        billRate: parseNumber(get('BILL RATE')),
         uploaded_by,
       };
     } catch (error) {
@@ -172,6 +175,7 @@ export class DiverseWeeklyService {
       'reg',
       'ot1',
       'total',
+      'bill_rate', 
       'uploaded_by',
     ];
 

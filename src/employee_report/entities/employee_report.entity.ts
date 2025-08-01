@@ -9,9 +9,6 @@ export class EmployeeReport extends BaseEntity {
   @Column({ name: 'uploaded_date', type: 'date' })
   uploadedDate: Date;
 
-  @Column({ name: 'employee_name', nullable: true })
-  employeeName: string;
-
   @Column({ name: 'business_unit_description', nullable: true })
   businessUnitDescription: string;
 

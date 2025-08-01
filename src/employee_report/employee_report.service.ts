@@ -17,8 +17,8 @@ export class EmployeeReportService {
     private readonly entityManager: EntityManager,
   ) {}
 
+ 
   private readonly expectedHeaders = [
-    'Employee Name',
     'Business Unit Description',
     'Business Unit Code',
     'Home Department Code',
@@ -29,27 +29,11 @@ export class EmployeeReportService {
     'Shift',
   ];
 
-  private readonly identifyingFields = [
-    'uploaded_date',
-    'business_unit_code',
-    'home_department_code',
-    'worked_department',
-    'pay_code_timecard',
-    'dollars',
-    'hours',
-    'shift',
-  ];
-
-  private readonly fieldsToUpdate = [
-    'employee_name',
-    'business_unit_description',
-  ];
-
   async process(
     data: any[],
     fileName: string,
     reportDate: string,
-    username: string, // ✅ New parameter
+    username: string,
   ): Promise<void> {
     this.logger.log(`Processing employee report: ${fileName}, rows: ${data.length}`);
 
@@ -58,18 +42,22 @@ export class EmployeeReportService {
         throw new BadRequestException('No data provided');
       }
 
+    
       this.validateHeaders(Object.keys(data[0]));
 
       const mapped = data
-        .map((row) => this.mapToEntity(row, reportDate, username)) // ✅ Pass username
+        .map((row) => this.mapToEntity(row, reportDate, username))
         .filter((row): row is EmployeeReport => row !== null);
 
       await this.insertOrUpdateTransactional(mapped);
+      this.logger.log(`Finished processing employee report: ${fileName}`);
     } catch (error: any) {
       this.logger.error(`Error processing file ${fileName}:`, error);
       throw error instanceof BadRequestException
         ? error
-        : new InternalServerErrorException(error.message || 'Failed to process employee report JSON');
+        : new InternalServerErrorException(
+            error.message || 'Failed to process employee report',
+          );
     }
   }
 
@@ -79,32 +67,30 @@ export class EmployeeReportService {
     const expected = this.expectedHeaders.map(normalize);
 
     const missing = expected.filter((col) => !received.includes(col));
+    if (missing.length) {
+      throw new BadRequestException(`Missing columns: ${missing.join(', ')}`);
+    }
+
     const extras = received.filter((col) => !expected.includes(col));
-
-    const issues: string[] = [];
-    if (missing.length) issues.push(`Missing: ${missing.join(', ')}`);
-    if (extras.length) issues.push(`Unexpected: ${extras.join(', ')}`);
-
-    if (issues.length) {
-      throw new BadRequestException(issues.join(' | '));
+    if (extras.length) {
+      this.logger.warn(`Ignoring unexpected columns: ${extras.join(', ')}`);
     }
   }
 
   private validateAndNormalizeDate(dateStr: string): Date {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       throw new BadRequestException(
-        `Invalid uploadedDate format: "${dateStr}". Expected format: YYYY-MM-DD.`,
+        `Invalid reportDate format: "${dateStr}". Expected YYYY-MM-DD.`,
       );
     }
-
     const [year, month, day] = dateStr.split('-').map(Number);
     return new Date(year, month - 1, day);
   }
 
   private mapToEntity(
     raw: Record<string, unknown>,
-    uploadedDate?: string,
-    uploaded_by?: string, // ✅ Include username
+    reportDate?: string,
+    uploaded_by?: string,
   ): EmployeeReport | null {
     const parseNumberOrZero = (val: unknown): number => {
       const n = Number(val);
@@ -112,59 +98,63 @@ export class EmployeeReportService {
     };
 
     const normalizedRaw: Record<string, string> = {};
+    const expectedSet = new Set(
+      this.expectedHeaders.map((h) => h.replace(/\s+/g, ' ').trim()),
+    );
+
     for (const [key, value] of Object.entries(raw)) {
       const normalizedKey = key.replace(/\s+/g, ' ').trim();
+      if (!expectedSet.has(normalizedKey)) continue; 
       normalizedRaw[normalizedKey] =
         typeof value === 'string' ? value.trim() : String(value ?? '');
     }
 
-    const employeeName = normalizedRaw['Employee Name'];
-    const parsedUploadedDate = uploadedDate
-      ? this.validateAndNormalizeDate(uploadedDate)
-      : new Date();
+    try {
+      const parsedDate = reportDate
+        ? this.validateAndNormalizeDate(reportDate)
+        : new Date();
 
-    return {
-      id: undefined, // Let TypeORM generate UUID
-      employeeName,
-      businessUnitDescription: normalizedRaw['Business Unit Description'],
-      businessUnitCode: normalizedRaw['Business Unit Code'],
-      homeDepartmentCode: normalizedRaw['Home Department Code'],
-      workedDepartment: normalizedRaw['Worked Department'],
-      payCodeTimecard: normalizedRaw['Pay Code [Timecard]'],
-      dollars: parseNumberOrZero(normalizedRaw['Dollars']),
-      hours: parseNumberOrZero(normalizedRaw['Hours']),
-      shift: normalizedRaw['Shift'],
-      uploadedDate: parsedUploadedDate,
-      uploaded_by, // ✅ Assign it here
-    } as EmployeeReport;
+      return {
+     
+        businessUnitDescription: normalizedRaw['Business Unit Description'],
+        businessUnitCode: normalizedRaw['Business Unit Code'],
+        homeDepartmentCode: normalizedRaw['Home Department Code'],
+        workedDepartment: normalizedRaw['Worked Department'],
+        payCodeTimecard: normalizedRaw['Pay Code [Timecard]'],
+        dollars: parseNumberOrZero(normalizedRaw['Dollars']),
+        hours: parseNumberOrZero(normalizedRaw['Hours']),
+        shift: normalizedRaw['Shift'],
+        uploadedDate: parsedDate,
+        uploaded_by,
+      } as EmployeeReport;
+    } catch (err: any) {
+      this.logger.warn(`Skipping row due to mapping error: ${err.message}`);
+      return null;
+    }
   }
 
   private async insertOrUpdateTransactional(data: EmployeeReport[]) {
-    this.logger.log(`Preparing to insert employee report rows: ${data.length}`);
+    this.logger.log(`Preparing to upsert ${data.length} report rows`);
 
     if (data.length === 0) return;
 
     const uploadedDate = data[0].uploadedDate;
-
     await this.entityManager.transaction(async (manager) => {
       await manager.delete(EmployeeReport, { uploadedDate });
-
       this.logger.log(
-        `Deleted existing records for uploaded_date = ${uploadedDate.toISOString().split('T')[0]}`,
+        `Deleted existing records for uploaded_date = ${uploadedDate
+          .toISOString()
+          .split('T')[0]}`,
       );
 
       const batchSize = 1000;
       for (let i = 0; i < data.length; i += batchSize) {
         const chunk = data.slice(i, i + batchSize);
         await manager.save(EmployeeReport, chunk);
-        this.logger.log(`Inserted rows ${i + 1} to ${i + chunk.length}`);
+        this.logger.log(`Inserted rows ${i + 1}-${i + chunk.length}`);
       }
     });
 
-    this.logger.log('Completed insert: duplicates removed by replacing uploaded_date data');
-  }
-
-  private snakeToCamel(s: string): string {
-    return s.replace(/_([a-z])/g, (m, p1) => p1.toUpperCase());
+    this.logger.log('Upsert complete');
   }
 }

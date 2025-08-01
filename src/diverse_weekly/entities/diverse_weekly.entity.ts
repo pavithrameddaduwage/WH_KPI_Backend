@@ -32,4 +32,7 @@ export class DiverseWeeklyReport extends BaseEntity {
 
   @Column({ name: 'total', type: 'float', default: 0, nullable: true })
   total: number;
+
+  @Column({ name: 'bill_rate', type: 'float', default: 0, nullable: true })
+  billRate: number;
 }

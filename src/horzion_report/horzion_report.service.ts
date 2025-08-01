@@ -20,8 +20,8 @@ export class HorzionReportService {
   private readonly expectedHeaders = [
     'Date',
     'Shift',
-    'Total Scheduled',
-    'Total Present',
+    'Total Scheduled Lumpers',
+    'Total Present Lumpers',
     'Late',
     'No Work',
     'No Call/ No Show',
@@ -32,12 +32,12 @@ export class HorzionReportService {
     'Resignations',
     'Inbound Scheduled',
     'Inbound Completed',
-    'Total Cases unloaded',
-    'Total Cases closed for the day',
-    'Total containers carried over to the next day',
-    'Total hours for the day',
-    'CPM for the day',
-    'Number of SKUs',
+    'Total Cases Unloaded',
+    'Total Cases Closed For The Day',
+    'Total Containers Carried Over To The Next Day',
+    'Total Hours For The Day',
+    'CPM For The Day',
+    'Number Of SKUs',
     'Near Misses',
     'Incidents',
     'Accidents',
@@ -45,8 +45,8 @@ export class HorzionReportService {
 
   private readonly fieldsToUpdate = [
     'shift',
-    'total_scheduled',
-    'total_present',
+    'total_scheduled_lumpers',
+    'total_present_lumpers',
     'late',
     'no_work',
     'no_call_no_show',
@@ -78,41 +78,29 @@ export class HorzionReportService {
     this.logger.log(`Processing Horizon Report: ${fileName}`);
 
     try {
-      if (!data || !Array.isArray(data) || data.length < 2) {
+      if (!data || !Array.isArray(data) || data.length === 0) {
         throw new BadRequestException('File format is invalid or missing header row.');
       }
 
       const parsedDate = this.validateAndNormalizeDate(uploadedDate);
 
-      const headerRow = data[1];
-      const headerMap = Object.entries(headerRow)
-        .filter(([_, val]) => typeof val === 'string' && val.trim() !== '')
-        .reduce((acc, [key, val]) => {
-          acc[key] = (val as string).replace(/\s+/g, ' ').trim();
-          return acc;
-        }, {} as Record<string, string>);
+      const firstRow = data[0];
+      const headerMap = Object.keys(firstRow).reduce((acc, key) => {
+        const normalized = key.replace(/\s+/g, ' ').trim().toLowerCase();
+        acc[normalized] = key;
+        return acc;
+      }, {} as Record<string, string>);
 
-      const headers = Object.values(headerMap);
-      this.validateHeaders(headers);
+      const receivedHeaders = Object.keys(headerMap).map(h => h.replace(/\s+/g, ' ').toUpperCase());
+      this.validateHeaders(receivedHeaders);
 
-      const rows = data.slice(2).filter(row =>
-        Object.values(row).some(val =>
-          val !== null &&
-          val !== undefined &&
-          (typeof val === 'string' || typeof val === 'number') &&
-          val.toString().trim() !== ''
-        )
-      );
+      const mapped = data
+        .map(row => this.mapToEntity(row, headerMap, parsedDate, uploaded_by))
+        .filter((entity): entity is HorizonReport => entity !== null);
 
-      if (!rows.length) {
-        throw new BadRequestException('No usable data rows found.');
+      if (mapped.length === 0) {
+        throw new BadRequestException('No valid data rows found.');
       }
-
-      const mapped = rows
-        .map(row => this.mapToEntityWithHeaderMap(row, headerMap, parsedDate, uploaded_by))
-        .filter((row): row is HorizonReport => row !== null);
-
-      if (mapped.length === 0) return;
 
       await this.insertOrUpdateTransactional(mapped);
       this.logger.log(`Finished processing Horizon Report: ${fileName}`);
@@ -127,10 +115,9 @@ export class HorzionReportService {
   private validateHeaders(receivedHeaders: string[]) {
     const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toUpperCase();
     const expected = this.expectedHeaders.map(normalize);
-    const received = receivedHeaders.map(normalize);
+    const missing = expected.filter(e => !receivedHeaders.includes(e));
 
-    const missing = expected.filter(e => !received.includes(e));
-    if (missing.length) {
+    if (missing.length > 0) {
       throw new BadRequestException(`Missing required columns: ${missing.join(', ')}`);
     }
   }
@@ -139,13 +126,12 @@ export class HorzionReportService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       throw new BadRequestException(`Invalid uploadedDate format: "${dateStr}". Expected YYYY-MM-DD`);
     }
-
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d, 12);
   }
 
-  private mapToEntityWithHeaderMap(
-    raw: Record<string, any>,
+  private mapToEntity(
+    row: Record<string, any>,
     headerMap: Record<string, string>,
     uploadedDate: Date,
     uploaded_by: string,
@@ -156,19 +142,23 @@ export class HorzionReportService {
     };
 
     const getVal = (label: string): any => {
-      const key = Object.entries(headerMap).find(([, v]) => v === label)?.[0];
-      const value = key ? raw[key] : null;
+      const normalizedLabel = label.replace(/\s+/g, ' ').trim().toLowerCase();
+      const key = headerMap[normalizedLabel];
+      const value = key ? row[key] : null;
       return typeof value === 'string' ? value.trim() : value ?? '';
     };
 
     const shift = getVal('Shift');
     if (!shift) return null;
 
+    let rawDate = getVal('Date');
+    const uploaded = typeof rawDate === 'number' ? this.excelSerialToDate(rawDate) : uploadedDate;
+
     return {
-      uploadedDate,
+      uploadedDate: uploaded,
       shift,
-      totalScheduled: parseNumber(getVal('Total Scheduled')),
-      totalPresent: parseNumber(getVal('Total Present')),
+      totalScheduledLumpers: parseNumber(getVal('Total Scheduled Lumpers')),
+      totalPresentLumpers: parseNumber(getVal('Total Present Lumpers')),
       late: parseNumber(getVal('Late')),
       noWork: parseNumber(getVal('No Work')),
       noCallNoShow: parseNumber(getVal('No Call/ No Show')),
@@ -179,17 +169,22 @@ export class HorzionReportService {
       resignations: parseNumber(getVal('Resignations')),
       inboundScheduled: parseNumber(getVal('Inbound Scheduled')),
       inboundCompleted: parseNumber(getVal('Inbound Completed')),
-      totalCasesUnloaded: parseNumber(getVal('Total Cases unloaded')),
-      totalCasesClosedForTheDay: parseNumber(getVal('Total Cases closed for the day')),
-      totalContainersCarriedOverToNextDay: parseNumber(getVal('Total containers carried over to the next day')),
-      totalHoursForTheDay: parseNumber(getVal('Total hours for the day')),
-      cpmForTheDay: parseNumber(getVal('CPM for the day')),
-      numberOfSkus: parseNumber(getVal('Number of SKUs')),
+      totalCasesUnloaded: parseNumber(getVal('Total Cases Unloaded')),
+      totalCasesClosedForTheDay: parseNumber(getVal('Total Cases Closed For The Day')),
+      totalContainersCarriedOverToTheNextDay: parseNumber(getVal('Total Containers Carried Over To The Next Day')),
+      totalHoursForTheDay: parseNumber(getVal('Total Hours For The Day')),
+      cpmForTheDay: parseNumber(getVal('CPM For The Day')),
+      numberOfSkus: parseNumber(getVal('Number Of SKUs')),
       nearMisses: parseNumber(getVal('Near Misses')),
       incidents: parseNumber(getVal('Incidents')),
       accidents: parseNumber(getVal('Accidents')),
       uploaded_by,
-    };
+    } as HorizonReport;
+  }
+
+  private excelSerialToDate(serial: number): Date {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    return new Date(excelEpoch.getTime() + serial * 86400000);
   }
 
   private async insertOrUpdateTransactional(data: HorizonReport[]) {
