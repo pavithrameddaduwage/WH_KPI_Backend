@@ -54,17 +54,19 @@ export class EmployeeWeeklyService {
         throw new BadRequestException('Valid header row not found.');
       }
 
-      const headersRaw = Object.keys(data[headerRowIndex]);
+      const headerRow = data[headerRowIndex];
+      const headersRaw = Object.keys(headerRow);
       const headersNormalized = headersRaw.map((h) => this.normalizeHeader(h));
       this.validateHeaders(headersNormalized);
 
-      const rows = data.slice(headerRowIndex + 1).filter((row) =>
+      // Include header row if it contains data
+      const dataRows = data.slice(headerRowIndex).filter((row) =>
         Object.values(row).some(
           (val) => val !== null && val !== undefined && val.toString().trim() !== '',
         ),
       );
 
-      const mapped = rows
+      const mapped = dataRows
         .map((row) => this.mapToEntity(row, startDate, endDate, username))
         .filter((row): row is EmployeeWeekly => row !== null)
         .map((row) => ({
