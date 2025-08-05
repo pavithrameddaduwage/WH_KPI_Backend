@@ -206,7 +206,7 @@ export class HorzionReportService {
         });
 
         const query = `
-          INSERT INTO horizon_reports (${columns.join(', ')})
+          INSERT INTO freight_breakers_daily (${columns.join(', ')})
           VALUES ${placeholders.join(', ')}
           ON CONFLICT (uploaded_date, shift)
           DO UPDATE SET ${this.fieldsToUpdate

@@ -240,7 +240,7 @@ export class DailyReportService {
       });
 
       const query = `
-        INSERT INTO daily_reports (${columns.join(', ')})
+        INSERT INTO hire_dynamics_daily (${columns.join(', ')})
         VALUES ${placeholders.join(', ')}
         ON CONFLICT (${this.identifyingFields.join(', ')})
         DO UPDATE SET ${this.fieldsToUpdate

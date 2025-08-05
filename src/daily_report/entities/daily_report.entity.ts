@@ -1,7 +1,7 @@
 import { BaseEntity } from 'src/common/base.entity';
 import { Entity, Column, PrimaryColumn } from 'typeorm';
 
-@Entity('daily_reports')
+@Entity('hire_dynamics_daily')
 export class DailyReport extends BaseEntity  {
   @PrimaryColumn({ type: 'date', name: 'uploaded_date' })
   uploadedDate: Date;

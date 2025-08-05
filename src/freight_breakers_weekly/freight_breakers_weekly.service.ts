@@ -13,8 +13,8 @@ export class FreightBreakersWeeklyService {
   private readonly logger = new Logger(FreightBreakersWeeklyService.name);
 
   constructor(
-      @InjectEntityManager()
-      private readonly entityManager: EntityManager,
+    @InjectEntityManager()
+    private readonly entityManager: EntityManager,
   ) {}
 
   private readonly expectedHeaders = [
@@ -40,11 +40,11 @@ export class FreightBreakersWeeklyService {
   };
 
   async process(
-      data: any[],
-      fileName: string,
-      startDateStr: string,
-      endDateStr: string,
-      username: string,
+    data: any[],
+    fileName: string,
+    startDateStr: string,
+    endDateStr: string,
+    username: string,
   ): Promise<void> {
     this.logger.log(`Processing Freight Breakers Weekly Report: ${fileName}`);
     console.log('Uploaded by:', username);
@@ -57,18 +57,23 @@ export class FreightBreakersWeeklyService {
       const startDate = this.validateAndNormalizeDate(startDateStr);
       const endDate = this.validateAndNormalizeDate(endDateStr);
 
-      const headers = Object.keys(data[0] || {}).filter(h => h.trim() !== '');
+      const headerRowIndex = this.findHeaderRowIndex(data);
+      if (headerRowIndex === -1) {
+        throw new BadRequestException('Valid header row not found.');
+      }
+
+      const headers = Object.keys(data[headerRowIndex] || {}).filter(h => h.trim() !== '');
       this.validateHeaders(headers);
 
-      const rows = data.filter(row =>
-          Object.values(row).some(
-              val => val !== null && val !== undefined && val.toString().trim() !== '',
-          ),
+      const rows = data.slice(headerRowIndex).filter(row =>
+        Object.values(row).some(
+          val => val !== null && val !== undefined && val.toString().trim() !== '',
+        ),
       );
 
       const mapped = rows
-          .map(row => this.mapToEntity(row, startDate, endDate, username))
-          .filter((row): row is FreightBreakersWeekly => row !== null);
+        .map(row => this.mapToEntity(row, startDate, endDate, username))
+        .filter((row): row is FreightBreakersWeekly => row !== null);
 
       if (mapped.length === 0) {
         this.logger.warn('No valid rows to insert.');
@@ -80,9 +85,24 @@ export class FreightBreakersWeeklyService {
     } catch (error: any) {
       this.logger.error(`Error processing file: ${fileName}`, error);
       throw error instanceof BadRequestException
-          ? error
-          : new InternalServerErrorException('Failed to process Freight Breakers Weekly Report');
+        ? error
+        : new InternalServerErrorException('Failed to process Freight Breakers Weekly Report');
     }
+  }
+
+  private findHeaderRowIndex(data: any[]): number {
+    const expectedNormalized = this.expectedHeaders.map(h => h.replace(/\s+/g, '').toLowerCase());
+
+    for (let i = 0; i < data.length; i++) {
+      const keys = Object.keys(data[i] || {}).map(k => k.replace(/\s+/g, '').toLowerCase());
+      if (
+        keys.length >= expectedNormalized.length &&
+        expectedNormalized.every(h => keys.includes(h))
+      ) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   private validateHeaders(receivedHeaders: string[]) {
@@ -114,64 +134,64 @@ export class FreightBreakersWeeklyService {
     return isNaN(n) ? 0 : n;
   }
 
+  private parseExcelDate(val: number): Date {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const correctedDays = val >= 60 ? val - 1 : val; // Excel bug fix
+    return new Date(excelEpoch.getTime() + correctedDays * msPerDay);
+  }
+
+  private parseDateField(val: any): Date | null {
+    if (typeof val === 'number') {
+      return this.parseExcelDate(val);
+    }
+
+    if (typeof val === 'string') {
+      const parts = val.split('/');
+      if (parts.length === 3) {
+        const [m, d, y] = parts.map(Number);
+        if (y > 1900 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+          return new Date(y, m - 1, d, 12);
+        }
+      }
+
+      const iso = new Date(val);
+      if (!isNaN(iso.getTime())) {
+        return new Date(iso.getFullYear(), iso.getMonth(), iso.getDate(), 12);
+      }
+    }
+
+    return null;
+  }
+
   private mapToEntity(
-      raw: Record<string, any>,
-      startDate: Date,
-      endDate: Date,
-      username: string,
+    raw: Record<string, any>,
+    startDate: Date,
+    endDate: Date,
+    username: string,
   ): FreightBreakersWeekly | null {
-    const parseDate = (val: unknown): Date | null => {
-      if (val == null) return null;
-
-      if (typeof val === 'number') {
-        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-        let days = val;
-        if (days >= 60) days -= 1;
-        const date = new Date(excelEpoch.getTime() + days * 86400 * 1000);
-        return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
-      }
-
-      if (typeof val === 'string') {
-        const mmddyyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-        const m = val.match(mmddyyyy);
-        if (m) {
-          const month = parseInt(m[1], 10);
-          const day = parseInt(m[2], 10);
-          const year = parseInt(m[3], 10);
-          return new Date(year, month - 1, day, 12);
-        }
-
-        const isoDate = new Date(val);
-        if (!isNaN(isoDate.getTime())) {
-          return new Date(isoDate.getFullYear(), isoDate.getMonth(), isoDate.getDate(), 12);
-        }
-      }
-
-      return null;
-    };
-
     const record: any = {
       'Start Date': startDate,
       'End Date': endDate,
-      'Date': parseDate(raw['Date']),
+      'Date': this.parseDateField(raw['Date']),
       'uploaded_by': username,
     };
 
-    if (!record['Date']) return null;
+    if (!record['Date']) {
+      this.logger.warn(`Skipping row due to invalid date: ${JSON.stringify(raw)}`);
+      return null;
+    }
 
     for (const header of this.expectedHeaders) {
       if (header === 'Date') continue;
 
       const val = raw[header];
-
       record[header] =
-          ['QTY', 'SKUCount', 'Units'].includes(header)
-              ? this.parseIntOrZero(val)
-              : ['Rate', 'Amount'].includes(header)
-                  ? this.parseFloatOrZero(val)
-                  : (val ?? '').toString().trim() === ''
-                      ? ''
-                      : val.toString().trim();
+        ['QTY', 'SKUCount', 'Units'].includes(header)
+          ? this.parseIntOrZero(val)
+          : ['Rate', 'Amount'].includes(header)
+            ? this.parseFloatOrZero(val)
+            : (val ?? '').toString().trim();
     }
 
     return record as FreightBreakersWeekly;

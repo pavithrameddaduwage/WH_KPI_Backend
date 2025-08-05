@@ -17,16 +17,16 @@ export class DiverseWeeklyService {
   ) {}
 
   private readonly expectedHeaders = [
-  'EMPLOYEE NAME',
-  'EMPLOYEE PAYROLL ID',
-  'FIRST NAME',
-  'LAST NAME',
-  'DEPARTMENT NAME',
-  'REG',
-  'OT1',
-  'TOTAL',
-  'BILL RATE',
-];
+    'EMPLOYEE NAME',
+    'EMPLOYEE PAYROLL ID',
+    'FIRST NAME',
+    'LAST NAME',
+    'DEPARTMENT NAME',
+    'REG',
+    'OT1',
+    'TOTAL',
+    'BILL RATE',
+  ];
 
   private readonly identifyingFields = ['employee_payroll_id', 'start_date', 'end_date'];
 
@@ -63,7 +63,12 @@ export class DiverseWeeklyService {
     const headerKeys = Object.keys(data[headerRowIndex]).map(h => h.trim().toUpperCase());
     this.validateHeaders(headerKeys);
 
-    const dataRows = data.slice(headerRowIndex + 1);
+    const dataRows = data.slice(headerRowIndex).filter((row, idx) => {
+      return idx !== 0 || Object.values(row).some(
+        (val) => val !== null && val !== undefined && val.toString().trim() !== ''
+      );
+    });
+
     if (dataRows.length === 0) {
       throw new BadRequestException('No data rows found after header.');
     }
@@ -175,7 +180,7 @@ export class DiverseWeeklyService {
       'reg',
       'ot1',
       'total',
-      'bill_rate', 
+      'bill_rate',
       'uploaded_by',
     ];
 

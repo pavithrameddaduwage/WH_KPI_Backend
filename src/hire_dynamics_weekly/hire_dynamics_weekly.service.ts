@@ -65,54 +65,63 @@ export class HireDynamicsWeeklyService {
   };
 
   async process(
-    data: any[],
-    fileName: string,
-    startDateStr: string,
-    endDateStr: string,
-    username: string,
-  ): Promise<void> {
-    this.logger.log(`Processing Hire Dynamics Weekly Report: ${fileName}`);
+  data: any[],
+  fileName: string,
+  startDateStr: string,
+  endDateStr: string,
+  username: string,
+): Promise<void> {
+  this.logger.log(`Processing Hire Dynamics Weekly Report: ${fileName}`);
 
-    try {
-      if (!data || !Array.isArray(data) || data.length === 0) {
-        throw new BadRequestException('File format is invalid or no data provided.');
-      }
-
-      const startDate = this.validateAndNormalizeDate(startDateStr);
-      const endDate = this.validateAndNormalizeDate(endDateStr);
-
-      const headers = Object.keys(data[0]).filter(h => h.trim() !== '');
-      this.logger.debug(`Received headers: ${headers.join(', ')}`);
-      this.validateHeaders(headers);
-
-      const rows = data.filter(row =>
-        Object.values(row).some(val =>
-          val !== null &&
-          val !== undefined &&
-          (typeof val === 'string' || typeof val === 'number') &&
-          val.toString().trim() !== ''
-        )
-      );
-
-      if (!rows.length) {
-        throw new BadRequestException('No usable data rows found.');
-      }
-
-      const mapped = rows
-        .map(row => this.mapToEntity(row, startDate, endDate, username))  
-        .filter((row): row is HireDynamicsWeekly => row !== null);
-
-      if (mapped.length === 0) return;
-
-      await this.insertOrUpdateTransactional(mapped);
-      this.logger.log(`Finished processing Hire Dynamics Weekly Report: ${fileName}`);
-    } catch (error: any) {
-      this.logger.error(`Error processing file: ${fileName}`, error);
-      throw error instanceof BadRequestException
-        ? error
-        : new InternalServerErrorException('Failed to process Hire Dynamics Weekly Report');
+  try {
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      throw new BadRequestException('File format is invalid or no data provided.');
     }
+
+    const startDate = this.validateAndNormalizeDate(startDateStr);
+    const endDate = this.validateAndNormalizeDate(endDateStr);
+
+    // ✅ Get first valid header row
+    const headerRow = data.find(row =>
+      Object.keys(row).some(h => h.trim() !== '')
+    );
+    if (!headerRow) {
+      throw new BadRequestException('Could not determine header row.');
+    }
+
+    const headers = Object.keys(headerRow).filter(h => h.trim() !== '');
+    this.logger.debug(`Received headers: ${headers.join(', ')}`);
+    this.validateHeaders(headers);
+
+    const rows = data.filter(row =>
+      Object.values(row).some(val =>
+        val !== null &&
+        val !== undefined &&
+        (typeof val === 'string' || typeof val === 'number') &&
+        val.toString().trim() !== ''
+      )
+    );
+
+    if (!rows.length) {
+      throw new BadRequestException('No usable data rows found.');
+    }
+
+    const mapped = rows
+      .map(row => this.mapToEntity(row, startDate, endDate, username))
+      .filter((row): row is HireDynamicsWeekly => row !== null);
+
+    if (mapped.length === 0) return;
+
+    await this.insertOrUpdateTransactional(mapped);
+    this.logger.log(`Finished processing Hire Dynamics Weekly Report: ${fileName}`);
+  } catch (error: any) {
+    this.logger.error(`Error processing file: ${fileName}`, error);
+    throw error instanceof BadRequestException
+      ? error
+      : new InternalServerErrorException('Failed to process Hire Dynamics Weekly Report');
   }
+}
+
 
   private validateHeaders(receivedHeaders: string[]) {
     const normalize = (s: string) => s.replace(/\s+/g, '').toLowerCase();

@@ -214,7 +214,7 @@ export class DiverseDailyReportService {
         });
 
         const query = `
-          INSERT INTO diverse_daily_reports (${columns.join(', ')})
+          INSERT INTO diverse_staffing_daily (${columns.join(', ')})
           VALUES ${placeholders.join(', ')}
           ON CONFLICT (${this.identifyingFields.join(', ')})
           DO UPDATE SET ${this.fieldsToUpdate

@@ -6,8 +6,8 @@ import {
   Index,
 } from 'typeorm';
 
-@Entity({ name: 'employee_weekly' })
-@Index('idx_employee_weekly_keys', ['startDate', 'endDate', 'payCode', 'businessUnitCode', 'homeDepartmentCode'])
+@Entity({ name: 'hgusa_weekly' })
+@Index('idx_hgusa_weekly_keys', ['startDate', 'endDate', 'payCode', 'businessUnitCode', 'homeDepartmentCode'])
 export class EmployeeWeekly extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
