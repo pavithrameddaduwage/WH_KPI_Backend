@@ -1,5 +1,5 @@
 import { BaseEntity } from 'src/common/base.entity';
-import { Entity, Column, PrimaryColumn } from 'typeorm';
+import { Entity, Column, PrimaryColumn, BeforeInsert } from 'typeorm';
 
 @Entity({ name: 'diverse_weekly_reports' })
 export class DiverseWeeklyReport extends BaseEntity {
@@ -35,4 +35,11 @@ export class DiverseWeeklyReport extends BaseEntity {
 
   @Column({ name: 'bill_rate', type: 'float', default: 0, nullable: true })
   billRate: number;
+
+  @BeforeInsert()
+  setDefaults() {
+    if (!this.employeePayrollId) {
+      this.employeePayrollId = '0';
+    }
+  }
 }

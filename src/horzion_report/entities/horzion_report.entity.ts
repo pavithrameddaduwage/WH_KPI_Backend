@@ -45,13 +45,13 @@ export class HorizonReport extends BaseEntity {
   @Column('int', { name: 'inbound_completed', nullable: true })
   inboundCompleted: number;
 
-  @Column('int', { name: 'total_cases_unloaded', nullable: true })
+  @Column('float', { name: 'total_cases_unloaded', nullable: true })
   totalCasesUnloaded: number;
 
-  @Column('int', { name: 'total_cases_closed_for_the_day', nullable: true })
+  @Column('float', { name: 'total_cases_closed_for_the_day', nullable: true })
   totalCasesClosedForTheDay: number;
 
-  @Column('int', { name: 'total_containers_carried_over_to_the_next_day', nullable: true })
+  @Column('float', { name: 'total_containers_carried_over_to_the_next_day', nullable: true })
   totalContainersCarriedOverToTheNextDay: number;
 
   @Column('float', { name: 'total_hours_for_the_day', nullable: true })

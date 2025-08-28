@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 import { DiverseWeeklyReport } from './entities/diverse_weekly.entity';
@@ -16,7 +12,7 @@ export class DiverseWeeklyService {
     private readonly entityManager: EntityManager,
   ) {}
 
-  private readonly expectedHeaders = [
+  private readonly requiredHeaders = [
     'EMPLOYEE NAME',
     'EMPLOYEE PAYROLL ID',
     'FIRST NAME',
@@ -25,8 +21,9 @@ export class DiverseWeeklyService {
     'REG',
     'OT1',
     'TOTAL',
-    'BILL RATE',
   ];
+
+  private readonly optionalHeaders = ['BILL RATE'];
 
   private readonly identifyingFields = ['employee_payroll_id', 'start_date', 'end_date'];
 
@@ -51,7 +48,7 @@ export class DiverseWeeklyService {
   ): Promise<void> {
     this.logger.log(`Processing diverse weekly report: ${fileName}, rows: ${data.length}`);
 
-    if (data.length === 0) {
+    if (!data || data.length === 0) {
       throw new BadRequestException('No data provided');
     }
 
@@ -60,14 +57,32 @@ export class DiverseWeeklyService {
       throw new BadRequestException('Valid header row not found in uploaded file.');
     }
 
-    const headerKeys = Object.keys(data[headerRowIndex]).map(h => h.trim().toUpperCase());
+    const headerRow = data[headerRowIndex];
+    const headerKeys = Object.keys(headerRow).map(h => h.trim().toUpperCase());
     this.validateHeaders(headerKeys);
 
-    const dataRows = data.slice(headerRowIndex).filter((row, idx) => {
-      return idx !== 0 || Object.values(row).some(
-        (val) => val !== null && val !== undefined && val.toString().trim() !== ''
-      );
-    });
+    let dataRows = data
+      .slice(headerRowIndex + 1)
+      .filter(row =>
+        Object.values(row).some(
+          val => val !== null && val !== undefined && val.toString().trim() !== '',
+        ),
+      )
+      .map(row => {
+        const normalized: Record<string, any> = {};
+        headerKeys.forEach((header, idx) => {
+          const keyAtIndex = Object.keys(row)[idx];
+          normalized[header] = row[keyAtIndex];
+        });
+        return normalized;
+      });
+
+   dataRows = dataRows.filter(row => {
+  const payrollId = (row['EMPLOYEE PAYROLL ID'] ?? '').toString().toUpperCase();
+  const employeeName = (row['EMPLOYEE NAME'] ?? '').toString().toUpperCase();
+  return payrollId !== 'TOTAL' && employeeName !== 'TOTAL';
+});
+
 
     if (dataRows.length === 0) {
       throw new BadRequestException('No data rows found after header.');
@@ -77,23 +92,21 @@ export class DiverseWeeklyService {
     const endDate = this.parseDate(endDateStr);
 
     const mapped = dataRows
-      .map((row) => this.mapToEntity(row, startDate, endDate, username))
+      .map(row => this.mapToEntity(row, startDate, endDate, username, headerKeys))
       .filter((row): row is DiverseWeeklyReport => row !== null);
 
-    await this.insertOrUpdateTransactional(mapped);
+    const merged = this.mergeDuplicates(mapped);
+
+    await this.insertOrUpdateTransactional(merged);
   }
 
   private findHeaderRowIndex(data: any[]): number {
-    const normalizedExpected = this.expectedHeaders.map(h => h.trim().toUpperCase());
+    const normalize = (str: string) => str.replace(/\s+/g, ' ').trim().toUpperCase();
+    const required = this.requiredHeaders.map(normalize);
 
     for (let i = 0; i < data.length; i++) {
-      const keys = Object.keys(data[i]).map(k => k.trim().toUpperCase());
-      if (
-        keys.length === normalizedExpected.length &&
-        keys.every((key, idx) => key === normalizedExpected[idx])
-      ) {
-        return i;
-      }
+      const keys = Object.keys(data[i]).map(normalize);
+      if (required.every(h => keys.includes(h))) return i;
     }
     return -1;
   }
@@ -101,17 +114,16 @@ export class DiverseWeeklyService {
   private validateHeaders(receivedHeaders: string[]) {
     const normalize = (str: string) => str.replace(/\s+/g, ' ').trim().toUpperCase();
     const received = receivedHeaders.map(normalize);
-    const expected = this.expectedHeaders.map(normalize);
+    const required = this.requiredHeaders.map(normalize);
 
-    const missing = expected.filter((col) => !received.includes(col));
-    const extras = received.filter((col) => !expected.includes(col));
+    const missing = required.filter(col => !received.includes(col));
+    if (missing.length) {
+      throw new BadRequestException(`Missing required columns: ${missing.join(', ')}`);
+    }
 
-    const issues: string[] = [];
-    if (missing.length) issues.push(`Missing: ${missing.join(', ')}`);
-    if (extras.length) issues.push(`Unexpected: ${extras.join(', ')}`);
-
-    if (issues.length) {
-      throw new BadRequestException(issues.join(' | '));
+    const optionalMissing = this.optionalHeaders.filter(col => !received.includes(col));
+    if (optionalMissing.length) {
+      this.logger.warn(`Optional columns missing: ${optionalMissing.join(', ')}`);
     }
   }
 
@@ -126,9 +138,11 @@ export class DiverseWeeklyService {
     raw: Record<string, unknown>,
     startDate: Date,
     endDate: Date,
-    uploaded_by: string
+    uploaded_by: string,
+    headers: string[],
   ): DiverseWeeklyReport | null {
     const parseNumber = (val: unknown): number => {
+      if (typeof val === 'string') val = val.replace(/[$,]/g, '').trim();
       const n = Number(val);
       return isNaN(n) ? 0 : n;
     };
@@ -139,30 +153,56 @@ export class DiverseWeeklyService {
     };
 
     try {
-      const employeePayrollId = get('EMPLOYEE PAYROLL ID');
-      if (!employeePayrollId) {
-        this.logger.warn(`Skipping row due to missing employeePayrollId: ${JSON.stringify(raw)}`);
+      const entity = new DiverseWeeklyReport();
+      entity.employeePayrollId = get('EMPLOYEE PAYROLL ID') || '0';
+      if (!entity.employeePayrollId) {
+        this.logger.warn(`Skipping row with empty EMPLOYEE PAYROLL ID: ${JSON.stringify(raw)}`);
         return null;
       }
 
-      return {
-        employeePayrollId,
-        startDate,
-        endDate,
-        employeeName: get('EMPLOYEE NAME'),
-        firstName: get('FIRST NAME'),
-        lastName: get('LAST NAME'),
-        departmentName: get('DEPARTMENT NAME'),
-        reg: parseNumber(get('REG')),
-        ot1: parseNumber(get('OT1')),
-        total: parseNumber(get('TOTAL')),
-        billRate: parseNumber(get('BILL RATE')),
-        uploaded_by,
-      };
-    } catch (error) {
+      entity.startDate = startDate;
+      entity.endDate = endDate;
+      entity.employeeName = get('EMPLOYEE NAME');
+      entity.firstName = get('FIRST NAME');
+      entity.lastName = get('LAST NAME');
+      entity.departmentName = get('DEPARTMENT NAME');
+      entity.reg = parseNumber(get('REG'));
+      entity.ot1 = parseNumber(get('OT1'));
+      entity.total = parseNumber(get('TOTAL'));
+      entity.billRate = headers.includes('BILL RATE') ? parseNumber(get('BILL RATE')) : 0;
+      entity.uploaded_by = uploaded_by;
+
+      return entity;
+    } catch (error: any) {
       this.logger.warn(`Skipping row due to error: ${error.message}`);
       return null;
     }
+  }
+
+  private mergeDuplicates(rows: DiverseWeeklyReport[]): DiverseWeeklyReport[] {
+    const map = new Map<string, DiverseWeeklyReport>();
+
+    for (const row of rows) {
+      const key = `${row.employeePayrollId}-${row.startDate.toISOString()}-${row.endDate.toISOString()}`;
+      if (!map.has(key)) {
+        map.set(key, row);
+      } else {
+        const existing = map.get(key)!;
+        existing.reg += row.reg;
+        existing.ot1 += row.ot1;
+        existing.total += row.total;
+
+        if (row.billRate && row.billRate > 0) existing.billRate = row.billRate;
+
+        existing.employeeName = row.employeeName || existing.employeeName;
+        existing.firstName = row.firstName || existing.firstName;
+        existing.lastName = row.lastName || existing.lastName;
+        existing.departmentName = row.departmentName || existing.departmentName;
+        existing.uploaded_by = row.uploaded_by;
+      }
+    }
+
+    return Array.from(map.values());
   }
 
   private async insertOrUpdateTransactional(data: DiverseWeeklyReport[]) {
@@ -203,7 +243,7 @@ export class DiverseWeeklyService {
           VALUES ${placeholders.join(', ')}
           ON CONFLICT (${this.identifyingFields.join(', ')})
           DO UPDATE SET ${this.fieldsToUpdate
-            .map((f) => `${f} = EXCLUDED.${f}`)
+            .map(f => `${f} = EXCLUDED.${f}`)
             .join(', ')};
         `;
 

@@ -7,6 +7,7 @@ import {
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager } from 'typeorm';
 import { HireDynamicsWeekly } from './entities/hire_dynamics_weekly.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class HireDynamicsWeeklyService {
@@ -61,67 +62,61 @@ export class HireDynamicsWeeklyService {
     'DT': 'dt',
     'Daily Total': 'daily_total',
     'COUNT': 'count',
-    'uploaded_by': 'uploaded_by',  
+    'uploaded_by': 'uploaded_by',
   };
 
   async process(
-  data: any[],
-  fileName: string,
-  startDateStr: string,
-  endDateStr: string,
-  username: string,
-): Promise<void> {
-  this.logger.log(`Processing Hire Dynamics Weekly Report: ${fileName}`);
+    data: any[],
+    fileName: string,
+    startDateStr: string,
+    endDateStr: string,
+    username: string,
+  ): Promise<void> {
+    this.logger.log(`Processing Hire Dynamics Weekly Report: ${fileName}`);
 
-  try {
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      throw new BadRequestException('File format is invalid or no data provided.');
+    try {
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        throw new BadRequestException('File format is invalid or no data provided.');
+      }
+
+      const startDate = this.validateAndNormalizeDate(startDateStr);
+      const endDate = this.validateAndNormalizeDate(endDateStr);
+
+      const headerRow = data.find(row =>
+        Object.keys(row).some(h => h.trim() !== '')
+      );
+      if (!headerRow) throw new BadRequestException('Could not determine header row.');
+
+      const headers = Object.keys(headerRow).filter(h => h.trim() !== '');
+      this.validateHeaders(headers);
+
+      const rows = data.filter(row =>
+        Object.values(row).some(val =>
+          val !== null &&
+          val !== undefined &&
+          (typeof val === 'string' || typeof val === 'number') &&
+          val.toString().trim() !== ''
+        )
+      );
+
+      if (!rows.length) throw new BadRequestException('No usable data rows found.');
+
+      const mapped = rows
+        .map(row => this.mapToEntity(row, startDate, endDate, username))
+        .filter((row): row is HireDynamicsWeekly => row !== null)
+        .map(row => ({ ...row, id: uuidv4() }));
+
+      if (!mapped.length) return;
+
+      await this.replaceDataForWeek(mapped, startDate, endDate);
+      this.logger.log(`Finished processing Hire Dynamics Weekly Report: ${fileName}`);
+    } catch (error: any) {
+      this.logger.error(`Error processing file: ${fileName}`, error);
+      throw error instanceof BadRequestException
+        ? error
+        : new InternalServerErrorException('Failed to process Hire Dynamics Weekly Report');
     }
-
-    const startDate = this.validateAndNormalizeDate(startDateStr);
-    const endDate = this.validateAndNormalizeDate(endDateStr);
-
-    // ✅ Get first valid header row
-    const headerRow = data.find(row =>
-      Object.keys(row).some(h => h.trim() !== '')
-    );
-    if (!headerRow) {
-      throw new BadRequestException('Could not determine header row.');
-    }
-
-    const headers = Object.keys(headerRow).filter(h => h.trim() !== '');
-    this.logger.debug(`Received headers: ${headers.join(', ')}`);
-    this.validateHeaders(headers);
-
-    const rows = data.filter(row =>
-      Object.values(row).some(val =>
-        val !== null &&
-        val !== undefined &&
-        (typeof val === 'string' || typeof val === 'number') &&
-        val.toString().trim() !== ''
-      )
-    );
-
-    if (!rows.length) {
-      throw new BadRequestException('No usable data rows found.');
-    }
-
-    const mapped = rows
-      .map(row => this.mapToEntity(row, startDate, endDate, username))
-      .filter((row): row is HireDynamicsWeekly => row !== null);
-
-    if (mapped.length === 0) return;
-
-    await this.insertOrUpdateTransactional(mapped);
-    this.logger.log(`Finished processing Hire Dynamics Weekly Report: ${fileName}`);
-  } catch (error: any) {
-    this.logger.error(`Error processing file: ${fileName}`, error);
-    throw error instanceof BadRequestException
-      ? error
-      : new InternalServerErrorException('Failed to process Hire Dynamics Weekly Report');
   }
-}
-
 
   private validateHeaders(receivedHeaders: string[]) {
     const normalize = (s: string) => s.replace(/\s+/g, '').toLowerCase();
@@ -139,28 +134,28 @@ export class HireDynamicsWeeklyService {
       throw new BadRequestException(`Invalid date format: "${dateStr}". Expected YYYY-MM-DD`);
     }
     const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d, 12);
+    return new Date(y, m - 1, d, 12); // normalized to noon
   }
 
   private mapToEntity(
     raw: Record<string, any>,
     startDate: Date,
     endDate: Date,
-    uploaded_by: string,  
+    uploaded_by: string,
   ): HireDynamicsWeekly | null {
     const parseNumber = (val: unknown): number => {
       const n = Number(val);
       return isNaN(n) ? 0 : n;
     };
 
+    if (!raw['Employee']) return null;
+
     const record: any = {
       'Employee': raw['Employee']?.toString().trim(),
       'Start Date': startDate,
       'End Date': endDate,
-      'uploaded_by': uploaded_by,  
+      'uploaded_by': uploaded_by,
     };
-
-    if (!record['Employee']) return null;
 
     for (const header of this.expectedHeaders) {
       const value = raw[header];
@@ -172,43 +167,34 @@ export class HireDynamicsWeeklyService {
     return record as HireDynamicsWeekly;
   }
 
-  private async insertOrUpdateTransactional(data: HireDynamicsWeekly[]) {
+  private async replaceDataForWeek(
+    data: (HireDynamicsWeekly & { id: string })[],
+    startDate: Date,
+    endDate: Date,
+  ) {
     const batchSize = 1000;
-    const allHeaders = [
-      'Employee',
-      'Start Date',
-      'End Date',
-      'Work Date',
-      ...this.expectedHeaders.filter(h => !['Employee', 'Work Date'].includes(h)),
-      'uploaded_by', 
-    ];
-    const dbColumns = allHeaders.map(h => this.dbColumnMap[h]);
+    const dbColumns = Object.values(this.dbColumnMap);
 
     await this.entityManager.transaction(async (manager) => {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+
+      this.logger.log(`Deleting existing records for startDate=${startDateStr} and endDate=${endDateStr}`);
+
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(HireDynamicsWeekly)
+        .where('start_date::date = :startDate AND end_date::date = :endDate', { startDate: startDateStr, endDate: endDateStr })
+        .execute();
+
       for (let i = 0; i < data.length; i += batchSize) {
         const chunk = data.slice(i, i + batchSize);
-        const values: any[] = [];
-
-        const placeholders = chunk.map((row) => {
-          const rowValues = allHeaders.map((header) => {
-            const value = row[header as keyof HireDynamicsWeekly];
-            values.push(value);
-            return `$${values.length}`;
-          });
-          return `(${rowValues.join(', ')})`;
-        });
-
-        const query = `
-          INSERT INTO hire_dynamics_weekly (${dbColumns.join(', ')})
-          VALUES ${placeholders.join(', ')}
-          ON CONFLICT (employee_id, start_date, end_date, work_date)
-          DO UPDATE SET ${dbColumns
-            .filter(col => !['employee_id', 'start_date', 'end_date', 'work_date'].includes(col))
-            .map(col => `${col} = EXCLUDED.${col}`).join(', ')};
-        `;
-
-        await manager.query(query, values);
+        await manager.save(HireDynamicsWeekly, chunk);
+        this.logger.log(`Inserted rows ${i + 1}-${i + chunk.length}`);
       }
     });
+
+    this.logger.log(`Successfully replaced data for ${startDate.toISOString()} - ${endDate.toISOString()}`);
   }
 }

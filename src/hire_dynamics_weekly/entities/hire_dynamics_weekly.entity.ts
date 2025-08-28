@@ -1,18 +1,21 @@
 import { BaseEntity } from 'src/common/base.entity';
-import { Entity, Column, PrimaryColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'hire_dynamics_weekly' })
 export class HireDynamicsWeekly extends BaseEntity {
-  @PrimaryColumn('varchar', { name: 'employee_id' })
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column('varchar', { name: 'employee_id' })
   'Employee': string;
 
-  @PrimaryColumn('date', { name: 'start_date' })
+  @Column('date', { name: 'start_date' })
   'Start Date': Date;
 
-  @PrimaryColumn('date', { name: 'end_date' })
+  @Column('date', { name: 'end_date' })
   'End Date': Date;
 
-  @PrimaryColumn('date', { name: 'work_date' }) 
+  @Column('date', { name: 'work_date' })
   'Work Date': Date;
 
   @Column('varchar', { name: 'department_g3', nullable: true })
@@ -65,4 +68,6 @@ export class HireDynamicsWeekly extends BaseEntity {
 
   @Column('int', { name: 'count', nullable: true })
   'COUNT': number;
+
+ 
 }

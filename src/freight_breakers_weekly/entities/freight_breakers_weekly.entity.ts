@@ -1,46 +1,48 @@
 import { BaseEntity } from 'src/common/base.entity';
-import { Entity, Column, PrimaryColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'freight_breakers_weekly' })
-export class FreightBreakersWeekly extends BaseEntity  {
-  @PrimaryColumn('date', { name: 'start_date' })
-  StartDate: Date;
+export class FreightBreakersWeekly extends BaseEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;  
 
-  @PrimaryColumn('date', { name: 'end_date' })
-  EndDate: Date;
+  @Column('date', { name: 'start_date' })
+  startDate: Date;
 
-  @PrimaryColumn('date', { name: 'date' })
-  Date: Date;
+  @Column('date', { name: 'end_date' })
+  endDate: Date;
 
-  @PrimaryColumn('varchar', { name: 'employee' })
-  Employee: string;
+  @Column('date', { name: 'date' })
+  date: Date;
 
-  @PrimaryColumn('varchar', { name: 'job' })
-  Job: string;
+  @Column('varchar', { name: 'employee' })
+  employee: string;
 
-  @PrimaryColumn('varchar', { name: 'container' })
-  Container: string;
+  @Column('varchar', { name: 'job' })
+  job: string;
 
-  @PrimaryColumn('int', { name: 'qty' })
-  QTY: number;
+  @Column('varchar', { name: 'container', nullable: true })
+  container: string;
 
-  @PrimaryColumn('int', { name: 'sku_count' })
-  SKUCount: number;
+  @Column('int', { name: 'qty' })
+  qty: number;
 
-  @PrimaryColumn('varchar', { name: 'door' })
-  Door: string;
+  @Column('int', { name: 'sku_count' })
+  skuCount: number;
 
-  @PrimaryColumn('varchar', { name: 'type' })
-  Type: string;
+  @Column('varchar', { name: 'door', nullable: true })
+  door: string;
 
-  @PrimaryColumn('int', { name: 'units' })
-  Units: number;
+  @Column('varchar', { name: 'type' })
+  type: string;
 
-  @PrimaryColumn('float', { name: 'rate' })
-  Rate: number;
+  @Column('int', { name: 'units' })
+  units: number;
+
+  @Column('float', { name: 'rate' })
+  rate: number;
 
   @Column('float', { name: 'amount', nullable: true })
-  Amount: number | null;
-
+  amount: number | null;
  
 }
