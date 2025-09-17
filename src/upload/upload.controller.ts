@@ -12,6 +12,7 @@ const allowedFileTypes = [
   'diverse_weekly',
   'hire_dynamics_weekly',
   'freight_breakers_weekly',
+  'employeeDetails',
 ] as const;
 
 type FileType = typeof allowedFileTypes[number];

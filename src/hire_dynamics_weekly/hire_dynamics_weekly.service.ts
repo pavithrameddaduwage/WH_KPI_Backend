@@ -137,64 +137,130 @@ export class HireDynamicsWeeklyService {
     return new Date(y, m - 1, d, 12); // normalized to noon
   }
 
-  private mapToEntity(
-    raw: Record<string, any>,
-    startDate: Date,
-    endDate: Date,
-    uploaded_by: string,
-  ): HireDynamicsWeekly | null {
-    const parseNumber = (val: unknown): number => {
-      const n = Number(val);
-      return isNaN(n) ? 0 : n;
-    };
+ private mapToEntity(
+  raw: Record<string, any>,
+  startDate: Date,
+  endDate: Date,
+  uploaded_by: string,
+): HireDynamicsWeekly | null {
+  const parseNumber = (val: unknown): number => {
+    const n = Number(val);
+    return isNaN(n) ? 0 : n;
+  };
 
-    if (!raw['Employee']) return null;
-
-    const record: any = {
-      'Employee': raw['Employee']?.toString().trim(),
-      'Start Date': startDate,
-      'End Date': endDate,
-      'uploaded_by': uploaded_by,
-    };
-
-    for (const header of this.expectedHeaders) {
-      const value = raw[header];
-      record[header] = ['Reg Hrs', 'OT', 'DT', 'Daily Total', 'COUNT'].includes(header)
-        ? parseNumber(value)
-        : (typeof value === 'string' ? value.trim() : value);
-    }
-
-    return record as HireDynamicsWeekly;
-  }
-
-  private async replaceDataForWeek(
-    data: (HireDynamicsWeekly & { id: string })[],
-    startDate: Date,
-    endDate: Date,
-  ) {
-    const batchSize = 1000;
-    const dbColumns = Object.values(this.dbColumnMap);
-
-    await this.entityManager.transaction(async (manager) => {
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
-
-      this.logger.log(`Deleting existing records for startDate=${startDateStr} and endDate=${endDateStr}`);
-
-      await manager
-        .createQueryBuilder()
-        .delete()
-        .from(HireDynamicsWeekly)
-        .where('start_date::date = :startDate AND end_date::date = :endDate', { startDate: startDateStr, endDate: endDateStr })
-        .execute();
-
-      for (let i = 0; i < data.length; i += batchSize) {
-        const chunk = data.slice(i, i + batchSize);
-        await manager.save(HireDynamicsWeekly, chunk);
-        this.logger.log(`Inserted rows ${i + 1}-${i + chunk.length}`);
+  const parseDate = (val: unknown): Date | null => {
+    if (!val) return null;
+    
+    if (val instanceof Date) return val;
+    
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return null;
+      
+      try {
+        // Handle Excel date format like "8/25/2025 5:59:00 AM"
+        const date = new Date(trimmed);
+        if (!isNaN(date.getTime())) return date;
+        
+        // Try alternative parsing for dates like "8/25/2025"
+        const dateParts = trimmed.split(' ')[0].split('/');
+        if (dateParts.length === 3) {
+          const month = parseInt(dateParts[0], 10) - 1;
+          const day = parseInt(dateParts[1], 10);
+          const year = parseInt(dateParts[2], 10);
+          const altDate = new Date(year, month, day);
+          if (!isNaN(altDate.getTime())) return altDate;
+        }
+      } catch (e) {
+        return null;
       }
-    });
+    }
+    
+    return null;
+  };
 
-    this.logger.log(`Successfully replaced data for ${startDate.toISOString()} - ${endDate.toISOString()}`);
+  if (!raw['Employee']) return null;
+
+  const record: any = {
+    'Employee': raw['Employee']?.toString().trim(),
+    'Start Date': startDate,
+    'End Date': endDate,
+    'uploaded_by': uploaded_by,
+  };
+
+  for (const header of this.expectedHeaders) {
+    const value = raw[header];
+    
+    if (['Work Date', 'Date', 'TIME.DCOMP'].includes(header)) {
+      // Special handling for date fields to prevent NaN errors
+      const parsedDate = parseDate(value);
+      record[header] = parsedDate;
+    } else if (['Reg Hrs', 'OT', 'DT', 'Daily Total', 'COUNT'].includes(header)) {
+      // Number fields
+      record[header] = parseNumber(value);
+    } else {
+      // String fields
+      record[header] = typeof value === 'string' ? value.trim() : value;
+    }
   }
+
+  return record as HireDynamicsWeekly;
+}
+
+private filterInvalidDates(data: (HireDynamicsWeekly & { id: string })[]) {
+  return data.filter(record => {
+    // Check if date fields are valid Date objects using the exact property names
+    const isWorkDateValid = record['Work Date'] instanceof Date && !isNaN(record['Work Date'].getTime());
+    const isDateValid = !record['Date'] || (record['Date'] instanceof Date && !isNaN(record['Date'].getTime()));
+    const isTimeDcompValid = !record['TIME.DCOMP'] || (record['TIME.DCOMP'] instanceof Date && !isNaN(record['TIME.DCOMP'].getTime()));
+    
+    const hasValidDates = isWorkDateValid && isDateValid && isTimeDcompValid;
+    
+    if (!hasValidDates) {
+      this.logger.warn(`Skipping record with invalid dates for employee: ${record['Employee']}`);
+      return false;
+    }
+    
+    return true;
+  });
+}
+
+private async replaceDataForWeek(
+  data: (HireDynamicsWeekly & { id: string })[],
+  startDate: Date,
+  endDate: Date,
+) {
+  const batchSize = 1000;
+
+  // Filter out records with invalid dates to prevent the NaN error
+  const validData = this.filterInvalidDates(data);
+  
+  if (validData.length !== data.length) {
+    this.logger.warn(`Filtered out ${data.length - validData.length} records with invalid dates`);
+  }
+
+  await this.entityManager.transaction(async (manager) => {
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    this.logger.log(`Deleting existing records for startDate=${startDateStr} and endDate=${endDateStr}`);
+
+    await manager
+      .createQueryBuilder()
+      .delete()
+      .from(HireDynamicsWeekly)
+      .where('start_date::date = :startDate AND end_date::date = :endDate', { startDate: startDateStr, endDate: endDateStr })
+      .execute();
+
+    for (let i = 0; i < validData.length; i += batchSize) {
+      const chunk = validData.slice(i, i + batchSize);
+      await manager.save(HireDynamicsWeekly, chunk);
+      this.logger.log(`Inserted rows ${i + 1}-${i + chunk.length}`);
+    }
+  });
+
+  this.logger.log(`Successfully replaced data for ${startDate.toISOString()} - ${endDate.toISOString()}`);
+}
+
+  
 }

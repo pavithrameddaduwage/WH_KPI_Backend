@@ -5,6 +5,7 @@ import { DiverseWeeklyService } from 'src/diverse_weekly/diverse_weekly.service'
 import { EmployeeReportService } from 'src/employee_report/employee_report.service';
 import { EmployeeWeeklyService } from 'src/employee_weekly/employee_weekly.service';
 import { FreightBreakersWeeklyService } from 'src/freight_breakers_weekly/freight_breakers_weekly.service';
+import { HgusaEmployeeDetailsService } from 'src/hgusa_employee_details/hgusa_employee_details.service';
 import { HireDynamicsWeeklyService } from 'src/hire_dynamics_weekly/hire_dynamics_weekly.service';
 import { HorzionReportService } from 'src/horzion_report/horzion_report.service';
 
@@ -16,7 +17,8 @@ type FileType =
   | 'employee_weekly'
   | 'diverse_weekly'
   | 'hire_dynamics_weekly'
-  | 'freight_breakers_weekly';
+  | 'freight_breakers_weekly'
+  | 'employeeDetails';
 
 @Injectable()
 export class UploadService {
@@ -29,6 +31,8 @@ export class UploadService {
     private readonly diverseWeeklyReportService: DiverseWeeklyService,
     private readonly hireDynamicsReportService: HireDynamicsWeeklyService,
     private readonly freightBreakersReportService: FreightBreakersWeeklyService,
+    private readonly hgusaEmployeeDetailsService: HgusaEmployeeDetailsService,
+
   ) {}
 
   async handleJsonUpload(payload: {
@@ -100,6 +104,10 @@ export class UploadService {
         await this.freightBreakersReportService.process(data, fileName, startDate, endDate,username);
         break;
 
+
+      case 'employeeDetails':
+      await this.hgusaEmployeeDetailsService.process(data, fileName, username);
+      break;
       default:
         throw new BadRequestException(`Unsupported fileType: ${fileType}`);
     }

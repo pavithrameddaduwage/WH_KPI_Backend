@@ -13,6 +13,7 @@ import { HireDynamicsWeeklyModule } from './hire_dynamics_weekly/hire_dynamics_w
 import { FreightBreakersWeeklyModule } from './freight_breakers_weekly/freight_breakers_weekly.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { HgusaEmployeeDetailsModule } from './hgusa_employee_details/hgusa_employee_details.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { UsersModule } from './users/users.module';
     FreightBreakersWeeklyModule,
     AuthModule,
     UsersModule,
+    HgusaEmployeeDetailsModule,
     
   ],
   controllers: [AppController],

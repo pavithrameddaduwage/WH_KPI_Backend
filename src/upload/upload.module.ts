@@ -9,6 +9,7 @@ import { DiverseWeeklyModule } from 'src/diverse_weekly/diverse_weekly.module';
 import { EmployeeWeeklyModule } from 'src/employee_weekly/employee_weekly.module';
 import { FreightBreakersWeeklyModule } from 'src/freight_breakers_weekly/freight_breakers_weekly.module';
 import { HireDynamicsWeeklyModule } from 'src/hire_dynamics_weekly/hire_dynamics_weekly.module';
+import { HgusaEmployeeDetailsModule } from 'src/hgusa_employee_details/hgusa_employee_details.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { HireDynamicsWeeklyModule } from 'src/hire_dynamics_weekly/hire_dynamics
     FreightBreakersWeeklyModule,
     EmployeeWeeklyModule,
     DiverseWeeklyModule,
+    HgusaEmployeeDetailsModule,
     
   ],
   controllers: [UploadController],
