@@ -83,11 +83,11 @@ export class UploadService {
       break;
 
       case 'diverse_weekly':
-        if (!startDate || !endDate) {
+      if (!startDate || !endDate) {
           throw new BadRequestException('Missing startDate or endDate for diverse_weekly');
         }
-        await this.diverseWeeklyReportService.process(data, fileName, startDate, endDate ,username);
-        break;
+      await this.diverseWeeklyReportService.process(data, fileName, startDate, endDate ,username);
+      break;
        
 
       case 'hire_dynamics_weekly':
