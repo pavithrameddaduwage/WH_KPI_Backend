@@ -69,5 +69,8 @@ export class HireDynamicsWeekly extends BaseEntity {
   @Column('int', { name: 'count', nullable: true })
   'COUNT': number;
 
+  @Column('float', { name: 'total_pay', nullable: true })
+  'Total Pay': number;
+
  
 }

@@ -38,6 +38,7 @@ export class HireDynamicsWeeklyService {
     'DT',
     'Daily Total',
     'COUNT',
+  
   ];
 
   private readonly dbColumnMap: Record<string, string> = {
@@ -62,6 +63,7 @@ export class HireDynamicsWeeklyService {
     'DT': 'dt',
     'Daily Total': 'daily_total',
     'COUNT': 'count',
+    'Total Pay': 'total_pay',
     'uploaded_by': 'uploaded_by',
   };
 
@@ -195,7 +197,7 @@ export class HireDynamicsWeeklyService {
       // Special handling for date fields to prevent NaN errors
       const parsedDate = parseDate(value);
       record[header] = parsedDate;
-    } else if (['Reg Hrs', 'OT', 'DT', 'Daily Total', 'COUNT'].includes(header)) {
+    } else if (['Reg Hrs', 'OT', 'DT', 'Daily Total', 'COUNT' , 'Total Pay'].includes(header)) {
       // Number fields
       record[header] = parseNumber(value);
     } else {
