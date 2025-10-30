@@ -160,7 +160,7 @@ export class FreightBreakersWeeklyService {
     }
 
     return {
-      id: '', // will be replaced with uuid
+      id: '',  
       startDate,
       endDate,
       date: parsedDate,

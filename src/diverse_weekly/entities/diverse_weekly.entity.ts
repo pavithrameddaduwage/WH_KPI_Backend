@@ -1,15 +1,19 @@
 import { BaseEntity } from 'src/common/base.entity';
-import { Entity, Column, PrimaryColumn, BeforeInsert } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, BeforeInsert } from 'typeorm';
 
 @Entity({ name: 'diverse_weekly_reports' })
 export class DiverseWeeklyReport extends BaseEntity {
-  @PrimaryColumn({ name: 'employee_payroll_id' })
+
+ @PrimaryGeneratedColumn('uuid')
+    id?: string;
+
+  @Column({ name: 'employee_payroll_id' })
   employeePayrollId: string;
 
-  @PrimaryColumn({ name: 'start_date', type: 'date' })
+  @Column({ name: 'start_date', type: 'date' })
   startDate: Date;
 
-  @PrimaryColumn({ name: 'end_date', type: 'date' })
+  @Column({ name: 'end_date', type: 'date' })
   endDate: Date;
 
   @Column({ name: 'employee_name', nullable: true })

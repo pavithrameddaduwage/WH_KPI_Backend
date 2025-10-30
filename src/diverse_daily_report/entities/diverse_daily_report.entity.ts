@@ -1,12 +1,16 @@
 import { BaseEntity } from 'src/common/base.entity';
-import { Column, Entity, PrimaryColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'diverse_staffing_daily' })
 export class DiverseDailyReport extends BaseEntity {
-  @PrimaryColumn({ name: 'uploaded_date', type: 'date' })
+
+  @PrimaryGeneratedColumn('uuid')
+    id?: string;
+    
+  @Column({ name: 'uploaded_date', type: 'date' })
   uploadedDate: Date;
 
-  @PrimaryColumn({ name: 'employee_payroll_id' })
+  @Column({ name: 'employee_payroll_id' })
   employeePayrollId: string;
 
   @Column({ name: 'employee_name' })

@@ -69,6 +69,7 @@ export class HorzionReportService {
     'uploaded_by',
   ];
 
+
   async process(
     data: any[],
     fileName: string,
@@ -91,7 +92,9 @@ export class HorzionReportService {
         return acc;
       }, {} as Record<string, string>);
 
-      const receivedHeaders = Object.keys(headerMap).map(h => h.replace(/\s+/g, ' ').toUpperCase());
+      const receivedHeaders = Object.keys(headerMap).map(h =>
+        h.replace(/\s+/g, ' ').toUpperCase(),
+      );
       this.validateHeaders(receivedHeaders);
 
       const mapped = data
@@ -103,15 +106,16 @@ export class HorzionReportService {
       }
 
       await this.insertOrUpdateTransactional(mapped);
-      this.logger.log(`Finished processing Horizon Report: ${fileName}`);
+      this.logger.log(` Finished processing Horizon Report: ${fileName}`);
     } catch (error: any) {
-      this.logger.error(`Error processing file: ${fileName}`, error);
+      this.logger.error(` Error processing file: ${fileName}`, error);
       throw error instanceof BadRequestException
         ? error
         : new InternalServerErrorException('Failed to process Horizon Report');
     }
   }
 
+ 
   private validateHeaders(receivedHeaders: string[]) {
     const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toUpperCase();
     const expected = this.expectedHeaders.map(normalize);
@@ -122,14 +126,19 @@ export class HorzionReportService {
     }
   }
 
-  private validateAndNormalizeDate(dateStr: string): Date {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      throw new BadRequestException(`Invalid uploadedDate format: "${dateStr}". Expected YYYY-MM-DD`);
-    }
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d, 12);
+ 
+ private validateAndNormalizeDate(dateStr: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    throw new BadRequestException(
+      `Invalid uploadedDate format: "${dateStr}". Expected YYYY-MM-DD`,
+    );
   }
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
 
+
+ 
   private mapToEntity(
     row: Record<string, any>,
     headerMap: Record<string, string>,
@@ -150,9 +159,8 @@ export class HorzionReportService {
 
     const shift = getVal('Shift');
     if (!shift) return null;
-
-    let rawDate = getVal('Date');
-    const uploaded = typeof rawDate === 'number' ? this.excelSerialToDate(rawDate) : uploadedDate;
+ 
+    const uploaded = uploadedDate;
 
     return {
       uploadedDate: uploaded,
@@ -171,7 +179,9 @@ export class HorzionReportService {
       inboundCompleted: parseNumber(getVal('Inbound Completed')),
       totalCasesUnloaded: parseNumber(getVal('Total Cases Unloaded')),
       totalCasesClosedForTheDay: parseNumber(getVal('Total Cases Closed For The Day')),
-      totalContainersCarriedOverToTheNextDay: parseNumber(getVal('Total Containers Carried Over To The Next Day')),
+      totalContainersCarriedOverToTheNextDay: parseNumber(
+        getVal('Total Containers Carried Over To The Next Day'),
+      ),
       totalHoursForTheDay: parseNumber(getVal('Total Hours For The Day')),
       cpmForTheDay: parseNumber(getVal('CPM For The Day')),
       numberOfSkus: parseNumber(getVal('Number Of SKUs')),
@@ -181,12 +191,7 @@ export class HorzionReportService {
       uploaded_by,
     } as HorizonReport;
   }
-
-  private excelSerialToDate(serial: number): Date {
-    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-    return new Date(excelEpoch.getTime() + serial * 86400000);
-  }
-
+ 
   private async insertOrUpdateTransactional(data: HorizonReport[]) {
     const batchSize = 1000;
     const columns = ['uploaded_date', ...this.fieldsToUpdate];
@@ -219,6 +224,7 @@ export class HorzionReportService {
     });
   }
 
+ 
   private snakeToCamel(s: string): string {
     return s.replace(/_([a-z])/g, (_, g) => g.toUpperCase());
   }
