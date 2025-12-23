@@ -38,6 +38,7 @@ export class HireDynamicsWeeklyService {
     'DT',
     'Daily Total',
     'COUNT',
+    'Total Pay',
   
   ];
 
